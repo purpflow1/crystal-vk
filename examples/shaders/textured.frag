@@ -1,0 +1,15 @@
+#version 460
+
+layout(location = 0) in vec3 fragPos;
+layout(location = 1) in vec2 UV;
+
+layout(location = 0) out vec4 outColor;
+
+layout(set = 0, binding = 1) uniform sampler2D color_sampler;
+
+void main() {
+    vec4 texture_color = vec4(1); // texture(color_sampler, UV);
+    texture_color.w = 1;
+    texture_color.xyz += 0.1;
+    outColor = texture_color;
+}

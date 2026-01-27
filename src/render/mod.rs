@@ -1,0 +1,85 @@
+pub mod framebuffer;
+mod render_pass;
+pub mod surface;
+pub mod swapchain;
+
+use std::{
+    error::Error,
+    sync::{Arc, Mutex, RwLock},
+};
+
+use ash::vk;
+
+use crate::{
+    device::{Device, queue::Queue},
+    error,
+    errors::{DeviceError, SyncError},
+    image::{Image, ImageType},
+    render::{
+        framebuffer::FramebufferPool,
+        render_pass::{RenderPass, RenderPassInfo},
+    },
+};
+
+pub struct RenderTarget {
+    pub(crate) framebuffer: Arc<RwLock<FramebufferPool>>,
+    pub device: Arc<Device>,
+}
+
+impl RenderTarget {
+    pub fn new(
+        device: Arc<Device>,
+        image_sequence: Vec<Arc<Image>>,
+        msaa_samples: u8,
+    ) -> Result<Arc<Self>, Box<dyn Error>> {
+        let counts = device
+            .physical_device
+            .properties
+            .limits
+            .framebuffer_color_sample_counts
+            & device
+                .physical_device
+                .properties
+                .limits
+                .framebuffer_depth_sample_counts;
+
+        let samples = match msaa_samples {
+            2 => vk::SampleCountFlags::TYPE_2,
+            4 => vk::SampleCountFlags::TYPE_4,
+            8 => vk::SampleCountFlags::TYPE_8,
+            16 => vk::SampleCountFlags::TYPE_16,
+            32 => vk::SampleCountFlags::TYPE_32,
+            64 => vk::SampleCountFlags::TYPE_64,
+            _ => vk::SampleCountFlags::TYPE_1,
+        };
+
+        dbg!(counts, samples);
+
+        if !samples.intersects(counts) {
+            let s = msaa_samples;
+
+            return error!(DeviceError, "device is not supported for sample count: {s}");
+        };
+
+        let present = match image_sequence[0].info.typ {
+            ImageType::Swapchain => true,
+            _ => false,
+        };
+
+        let render_pass = RenderPass::new(
+            device.clone(),
+            RenderPassInfo {
+                samples,
+                format: image_sequence[0].info.format,
+                present,
+            },
+        )?;
+
+        let framebuffer = FramebufferPool::new(render_pass.clone(), image_sequence)?;
+
+        Ok(Arc::new(Self {
+            framebuffer,
+            device,
+        }))
+    }
+}
