@@ -12,6 +12,7 @@ use crate::{
     device::Device,
     error,
     errors::CommandError,
+    image::Image,
     pipeline::{
         Pipeline,
         descriptor::{
@@ -56,7 +57,6 @@ impl CommandBufferBuilder {
     }
 
     fn validate(&self) -> Result<(), Box<dyn Error>> {
-        // TODO
         Ok(())
     }
 
@@ -110,6 +110,117 @@ impl CommandBufferBuilder {
         }))
     }
 
+    pub fn transition_image_layout(
+        self: Box<Self>,
+        image: Arc<Image>,
+        layout_new: vk::ImageLayout,
+    ) -> Result<Box<Self>, Box<CommandError>> {
+        let layout_old = image.info.layout.get();
+
+        let mut barrier = vk::ImageMemoryBarrier::default()
+            .old_layout(layout_old)
+            .new_layout(layout_new)
+            .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .image(image.handle)
+            .subresource_range(
+                vk::ImageSubresourceRange::default()
+                    .aspect_mask(vk::ImageAspectFlags::COLOR)
+                    .base_mip_level(0)
+                    .level_count(image.info.mip_levels)
+                    .base_array_layer(0)
+                    .layer_count(1),
+            );
+
+        let mut src_stage = vk::PipelineStageFlags::TOP_OF_PIPE;
+        let mut dst_stage = vk::PipelineStageFlags::TRANSFER;
+
+        if layout_old == vk::ImageLayout::UNDEFINED
+            && layout_new == vk::ImageLayout::TRANSFER_DST_OPTIMAL
+        {
+            barrier = barrier
+                .src_access_mask(vk::AccessFlags::empty())
+                .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE);
+        } else if layout_old == vk::ImageLayout::TRANSFER_DST_OPTIMAL
+            && layout_new == vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
+        {
+            barrier = barrier
+                .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                .dst_access_mask(vk::AccessFlags::SHADER_READ);
+
+            src_stage = vk::PipelineStageFlags::TRANSFER;
+            dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
+        } else {
+            return error!(
+                CommandError,
+                "unsupported layout transition: {layout_old:?} -> {layout_new:?}"
+            );
+        }
+
+        unsafe {
+            image.info.layout.set(layout_new);
+
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_pipeline_barrier(
+                    self.handle,
+                    src_stage,
+                    dst_stage,
+                    vk::DependencyFlags::empty(),
+                    &[],
+                    &[],
+                    &[barrier],
+                )
+        };
+
+        Ok(self)
+    }
+
+    pub fn stage_image<T>(
+        self: Box<Self>,
+        image: Arc<Image>,
+        buffer: Arc<RwLock<Buffer<T>>>,
+    ) -> Result<Box<Self>, Box<CommandError>> {
+        let layout = image.info.layout.get();
+
+        if layout != vk::ImageLayout::TRANSFER_DST_OPTIMAL {
+            return error!(CommandError, "staging is not supported with {layout:?}");
+        }
+
+        let region = vk::BufferImageCopy::default()
+            .buffer_offset(0)
+            .buffer_row_length(0)
+            .buffer_image_height(0)
+            .image_subresource(
+                vk::ImageSubresourceLayers::default()
+                    .aspect_mask(vk::ImageAspectFlags::COLOR)
+                    .mip_level(0)
+                    .base_array_layer(0)
+                    .layer_count(1),
+            )
+            .image_offset(vk::Offset3D::default())
+            .image_extent(vk::Extent3D {
+                width: image.info.extent[0],
+                height: image.info.extent[1],
+                depth: 1,
+            });
+
+        let lock = buffer.read().unwrap();
+
+        unsafe {
+            lock.device.handle.cmd_copy_buffer_to_image(
+                self.handle,
+                lock.as_raw(),
+                image.handle,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                &[region],
+            );
+        }
+
+        Ok(self)
+    }
+
     pub fn draw_indexed(self: Box<Self>, index_count: u32) -> Box<Self> {
         unsafe {
             self.command_buffer_allocator
@@ -120,11 +231,11 @@ impl CommandBufferBuilder {
         self
     }
 
-    pub fn bind_descriptor_sets<DT, PT>(
+    pub fn bind_descriptor_sets<T>(
         self: Box<Self>,
-        pipeline: Arc<Pipeline<PT>>,
+        pipeline: Arc<Pipeline<T>>,
         first_set: u32,
-        descriptor_sets: Vec<Arc<Mutex<DescriptorSet<DT>>>>,
+        descriptor_sets: Vec<Arc<Mutex<DescriptorSet>>>,
     ) -> Box<Self> {
         unsafe {
             self.command_buffer_allocator

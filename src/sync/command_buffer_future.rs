@@ -122,6 +122,19 @@ impl CommandBufferFuture {
         }))
     }
 
+    pub fn wait(&mut self) -> Result<(), Box<dyn Error>> {
+        unsafe {
+            if let Err(e) = self
+                .device
+                .handle
+                .wait_for_fences(&[self.fence], true, u64::MAX)
+            {
+                return error!(SyncError, "error waiting for fences: {e}");
+            }
+        }
+        Ok(())
+    }
+
     pub fn flush(&mut self) -> Result<(), Box<dyn Error>> {
         if self.submitted {
             return Ok(());

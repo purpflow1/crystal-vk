@@ -17,6 +17,7 @@ use crystal_vk::{
         queue::{Queue, QueuePool},
     },
     errors::SwapchainOutOfDate,
+    image::sampler::{Sampler, SamplerInfo},
     pipeline::{
         Pipeline, PipelineInfo,
         attribute::{Attribute, AttributeDescriptor},
@@ -32,6 +33,7 @@ use crystal_vk::{
     render::{RenderTarget, swapchain::Swapchain},
     sync::{CommandBufferFuture, GpuFuture, PresentFuture, SwapchainFuture},
 };
+use png::BitDepth;
 use winit::{
     application::ApplicationHandler,
     dpi::LogicalSize,
@@ -81,9 +83,11 @@ struct Data {
     buffer_vert: Arc<RwLock<Buffer<VertexTexture>>>,
     buffer_ind: Arc<RwLock<Buffer<Index>>>,
     buffer_model: Arc<RwLock<Buffer<glam::Mat4>>>,
+    sampler: Arc<Sampler>,
+    image: Arc<crystal_vk::image::Image>,
 
     pipeline: Arc<Pipeline<VertexTexture>>,
-    per_object_descriptor_set: Arc<Mutex<DescriptorSet<glam::Mat4>>>,
+    per_object_descriptor_set: Arc<Mutex<DescriptorSet>>,
 
     startup_time: SystemTime,
     last_frame: SystemTime,
@@ -271,10 +275,88 @@ impl ApplicationHandler for ContextWindow {
         )
         .unwrap();
 
-        let mut lock = per_object_descriptor_set.lock().unwrap();
-        lock.bind_buffer(buffer_model.clone(), 0, 0, 1).unwrap();
+        let sampler = Sampler::new(
+            device.clone(),
+            SamplerInfo {
+                filter: vk::Filter::LINEAR,
+                address_mode: vk::SamplerAddressMode::REPEAT,
+                anisotropy_texels: 1.,
+                max_lod: 0.,
+            },
+        )
+        .unwrap();
 
         let command_allocator = CommandBufferAllocator::new(queues.clone()).unwrap();
+
+        let (image, image_buffer) = {
+            let file = File::open("examples/resources/textures/test.png").unwrap();
+            let buf_reader = BufReader::new(file);
+            let decoder = png::Decoder::new(buf_reader);
+            let mut reader = decoder.read_info().unwrap();
+            let size = reader.output_buffer_size().unwrap();
+
+            let buffer = Buffer::new(
+                device.clone(),
+                BufferCreateInfo {
+                    len: size as u64,
+                    sharing_mode: vk::SharingMode::EXCLUSIVE,
+                    usage: vk::BufferUsageFlags::TRANSFER_SRC,
+                    properties: vk::MemoryPropertyFlags::HOST_COHERENT
+                        | vk::MemoryPropertyFlags::HOST_VISIBLE,
+                },
+            )
+            .unwrap();
+
+            let mut lock = buffer.write().unwrap();
+            let info = reader.next_frame(&mut lock[..size as u64]).unwrap();
+            drop(lock);
+
+            (
+                crystal_vk::image::Image::new(
+                    device.clone(),
+                    [info.width, info.height],
+                    vk::Format::R8G8B8A8_SRGB,
+                )
+                .unwrap(),
+                buffer,
+            )
+        };
+
+        let (transfer_queue_family_info, transfer_queue) = queues
+            .iter()
+            .find_map(|(info, queues)| {
+                if info.flags.contains(vk::QueueFlags::TRANSFER) {
+                    Some((*info, queues[0].clone()))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+
+        // TODO fix living time
+        let command_buffer_builder = CommandBufferBuilder::new(
+            command_allocator.clone(),
+            transfer_queue_family_info.index,
+            vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
+        )
+        .unwrap()
+        .transition_image_layout(image.clone(), vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+        .unwrap()
+        .stage_image(image.clone(), image_buffer.clone())
+        .unwrap()
+        .transition_image_layout(image.clone(), vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+        .unwrap()
+        .build()
+        .unwrap();
+
+        let mut command_buffer = command_buffer_builder.execute(transfer_queue).unwrap();
+        command_buffer.flush().unwrap();
+        command_buffer.wait().unwrap();
+
+        let mut lock = per_object_descriptor_set.lock().unwrap();
+        lock.bind_buffer(buffer_model.clone(), 0, 0, 1).unwrap();
+        lock.bind_combined_image_sampler(image.clone(), sampler.clone(), 1, 0, 1)
+            .unwrap();
 
         self.window = Some(window);
         self.data = Some(Data {
@@ -288,6 +370,8 @@ impl ApplicationHandler for ContextWindow {
             buffer_ind: buffer_index,
             buffer_model,
             buffer_vert: buffer_vertex,
+            sampler,
+            image,
 
             pipeline: world_object_pipeline,
             per_object_descriptor_set: per_object_descriptor_set.clone(),
@@ -307,31 +391,33 @@ impl ApplicationHandler for ContextWindow {
 
         let data = self.data.as_mut().unwrap();
 
-        let aspect_ratio = data.extent[0] as f32 / data.extent[1] as f32;
+        let aspect_ratio = data.extent[1] as f32 / data.extent[0] as f32;
 
         let delta_time = SystemTime::now().duration_since(data.last_frame).unwrap();
 
         window.set_title(format!("FPS: {}", (1. / delta_time.as_secs_f32()) as u32).as_str());
 
-        let camera = glam::Mat4::perspective_lh(PI / 3., aspect_ratio, 0.1, 100.)
-            * glam::Mat4::look_at_lh(
-                glam::Vec3::new(0., 0., -1.),
-                glam::Vec3::ZERO,
-                glam::Vec3::new(0., 1., 0.),
-            );
+        let camera = glam::Mat4::look_at_lh(
+            glam::Vec3::new(0., 0., -1.),
+            glam::Vec3::ZERO,
+            glam::Vec3::new(0., 1., 0.),
+        );
+
+        let perspective = glam::Mat4::perspective_lh(PI / 3., aspect_ratio, 0.1, 100.);
 
         let mut buffer = data.buffer_model.write().unwrap();
 
         let seconds = data.startup_time.elapsed().unwrap().as_secs_f32();
 
-        buffer[0] = camera
-            * glam::Mat4::from_scale_rotation_translation(
-                glam::Vec3::new(0.8, 0.8, 0.8),
-                glam::Quat::from_rotation_y(seconds)
-                    * glam::Quat::from_rotation_z(seconds)
-                    * glam::Quat::from_rotation_x(seconds),
-                glam::Vec3::new(0., 0., 1.),
-            );
+        let model = glam::Mat4::from_scale_rotation_translation(
+            glam::Vec3::new(0.8, 0.8, 0.8),
+            glam::Quat::from_rotation_y(seconds)
+                * glam::Quat::from_rotation_z(seconds)
+                * glam::Quat::from_rotation_x(seconds),
+            glam::Vec3::new(0., 0., 1.),
+        );
+
+        buffer[0] = perspective * (camera * model);
 
         let (family_info, queues) = data
             .queues

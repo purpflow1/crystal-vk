@@ -39,6 +39,7 @@ err!(DeviceError);
 err!(SwapChainError);
 err!(MemoryError);
 err!(PipelineError);
+err!(ImageError);
 
 err!(SyncError);
 err!(QueueError);

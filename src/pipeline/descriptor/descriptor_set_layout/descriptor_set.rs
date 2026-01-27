@@ -9,24 +9,55 @@ use crate::{
     buffer::Buffer,
     error,
     errors::DescriptorError,
+    image::{Image, sampler::Sampler},
     pipeline::descriptor::{DescriptorPool, descriptor_set_layout::DescriptorSetLayout},
 };
 
-enum Bound<T> {
-    None,
-    Buffer(Arc<RwLock<Buffer<T>>>),
-}
-
-pub struct DescriptorSet<T> {
+pub struct DescriptorSet {
     pub(crate) handle: vk::DescriptorSet,
     pub(crate) descriptor_set_layout: Arc<DescriptorSetLayout>,
     descriptor_pool: Arc<Mutex<DescriptorPool>>,
-
-    bound: Bound<T>,
 }
 
-impl<T> DescriptorSet<T> {
-    pub fn bind_buffer(
+impl DescriptorSet {
+    pub fn bind_combined_image_sampler(
+        &mut self,
+        image: Arc<Image>,
+        sampler: Arc<Sampler>,
+        binding: u32,
+        array_offset: u32,
+        array_count: u32,
+    ) -> Result<(), Box<dyn Error>> {
+        let device = image.device.clone();
+
+        let image_infos = [vk::DescriptorImageInfo::default()
+            .image_view(image.image_view)
+            .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+            .sampler(sampler.handle)];
+
+        let typ = if let Some(alloc_info) = self.descriptor_set_layout.alloc_info.get(&binding) {
+            alloc_info.typ
+        } else {
+            return error!(DescriptorError, "no such binding");
+        };
+
+        let descriptor_write = vk::WriteDescriptorSet::default()
+            .descriptor_type(typ)
+            .dst_set(self.handle)
+            .dst_binding(binding)
+            .dst_array_element(array_offset)
+            .descriptor_count(array_count)
+            .image_info(&image_infos);
+
+        unsafe {
+            device
+                .handle
+                .update_descriptor_sets(&[descriptor_write], &[])
+        };
+        Ok(())
+    }
+
+    pub fn bind_buffer<T>(
         &mut self,
         buffer: Arc<RwLock<Buffer<T>>>,
         binding: u32,
@@ -63,8 +94,6 @@ impl<T> DescriptorSet<T> {
         };
 
         drop(buffer_lock);
-
-        self.bound = Bound::Buffer(buffer);
         Ok(())
     }
 
@@ -94,7 +123,6 @@ impl<T> DescriptorSet<T> {
             handle: descriptor_set,
             descriptor_set_layout: descriptor_set_layout,
             descriptor_pool,
-            bound: Bound::None,
         })))
     }
 }

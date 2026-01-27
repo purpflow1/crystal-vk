@@ -1,26 +1,39 @@
-use std::{error::Error, sync::Arc};
+pub mod sampler;
+
+use std::{
+    cell::Cell,
+    error::Error,
+    sync::{Arc, Mutex, RwLock},
+};
 
 use ash::vk;
 
-use crate::{device::Device, error, errors::DeviceError};
+use crate::{
+    buffer::Buffer,
+    command::{CommandBufferAllocator, command_buffer_builder::CommandBufferBuilder},
+    device::Device,
+    error,
+    errors::{DeviceError, ImageError},
+};
 
 pub enum ImageType {
     Swapchain,
-    Texture,
+    Sampled,
     FramebufferColor,
     FramebufferDepth,
 }
 
 pub struct ImageInfo {
-    pub(crate) extent: [u32; 2],
-    pub(crate) typ: ImageType,
-    pub(crate) format: vk::Format,
+    pub extent: [u32; 2],
+    pub typ: ImageType,
+    pub format: vk::Format,
+    pub layout: Cell<vk::ImageLayout>,
+    pub mip_levels: u32,
 }
 
-struct ImageCreateInfo {
+pub struct ImageCreateInfo {
     pub width: u32,
     pub height: u32,
-    pub anisotropy_texels: f32,
     pub generate_mips: bool,
     pub image_type: ImageType,
 
@@ -56,6 +69,47 @@ impl Drop for Image {
 }
 
 impl Image {
+    pub fn new(
+        device: Arc<Device>,
+        extent: [u32; 2],
+        format: vk::Format,
+    ) -> Result<Arc<Self>, Box<dyn Error>> {
+        let format_properties = unsafe {
+            device
+                .instance
+                .handle
+                .get_physical_device_format_properties(device.physical_device.handle, format)
+        };
+
+        if format_properties.optimal_tiling_features
+            & vk::FormatFeatureFlags::SAMPLED_IMAGE_FILTER_LINEAR
+            != vk::FormatFeatureFlags::SAMPLED_IMAGE_FILTER_LINEAR
+        {
+            return error!(
+                ImageError,
+                "no suitable device for image linear filtering with format: {format:?}"
+            );
+        }
+
+        let create_info = ImageCreateInfo {
+            width: extent[0],
+            height: extent[1],
+            generate_mips: false,
+            image_type: ImageType::Sampled,
+            format,
+            samples: vk::SampleCountFlags::TYPE_1,
+            tiling: vk::ImageTiling::OPTIMAL,
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            usage: vk::ImageUsageFlags::TRANSFER_SRC
+                | vk::ImageUsageFlags::TRANSFER_DST
+                | vk::ImageUsageFlags::SAMPLED
+                | vk::ImageUsageFlags::COLOR_ATTACHMENT,
+            mem_property: vk::MemoryPropertyFlags::DEVICE_LOCAL,
+        };
+
+        Self::new_in(device, create_info)
+    }
+
     pub(crate) fn new_framebuffer_color(
         device: Arc<Device>,
         extent: [u32; 2],
@@ -66,7 +120,6 @@ impl Image {
             width: extent[0],
             height: extent[1],
             generate_mips: false,
-            anisotropy_texels: 1.,
             format: image_format,
             samples,
             tiling: vk::ImageTiling::OPTIMAL,
@@ -99,7 +152,6 @@ impl Image {
             width: extent[0],
             height: extent[1],
             generate_mips: false,
-            anisotropy_texels: 1.,
             format: depth_format,
             samples,
             tiling,
@@ -126,6 +178,8 @@ impl Image {
                 extent,
                 typ: ImageType::Swapchain,
                 format: image_format,
+                layout: Cell::new(vk::ImageLayout::READ_ONLY_OPTIMAL),
+                mip_levels: 0,
             },
             device,
         })
@@ -230,6 +284,8 @@ impl Image {
                 extent: [image_create_info.width, image_create_info.height],
                 typ: image_create_info.image_type,
                 format: image_create_info.format,
+                layout: Cell::new(vk::ImageLayout::UNDEFINED),
+                mip_levels,
             },
             device,
         }))

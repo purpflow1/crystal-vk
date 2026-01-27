@@ -25,6 +25,7 @@ pub struct BufferCreateInfo {
 /// Can be indexed with `u64` only!
 pub struct Buffer<T> {
     inner: BufferData,
+    pub device: Arc<Device>,
     _t: PhantomData<T>,
 }
 
@@ -35,7 +36,7 @@ impl<T> Buffer<T> {
     ) -> Result<Arc<RwLock<Self>>, Box<dyn Error>> {
         Ok(Arc::new(RwLock::new(Self {
             inner: BufferData::new(
-                device,
+                device.clone(),
                 BufferInfo {
                     size: info.len * size_of::<T>() as u64,
                     sharing_mode: info.sharing_mode,
@@ -43,6 +44,7 @@ impl<T> Buffer<T> {
                     properties: info.properties,
                 },
             )?,
+            device,
             _t: PhantomData,
         })))
     }

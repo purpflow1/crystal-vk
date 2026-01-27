@@ -20,6 +20,8 @@ pub struct Device {
     pub(crate) extensions: Vec<String>,
 }
 
+unsafe impl Send for Device {}
+
 impl Drop for Device {
     fn drop(&mut self) {
         unsafe { self.handle.destroy_device(None) }
