@@ -25,7 +25,11 @@ struct SwapchainInfo {
 }
 
 impl SwapchainInfo {
-    fn new(device: Arc<Device>, vsync: bool) -> Result<Arc<Self>, Box<dyn Error>> {
+    fn new(
+        device: Arc<Device>,
+        extent: [u32; 2],
+        vsync: bool,
+    ) -> Result<Arc<Self>, Box<dyn Error>> {
         let queue_family_indices = [
             match device
                 .physical_device
@@ -67,12 +71,10 @@ impl SwapchainInfo {
             }
         };
 
-        let swap_extent =
-            if swap_chain_support_details.capabilities.current_extent.width != u32::MAX {
-                swap_chain_support_details.capabilities.current_extent
-            } else {
-                todo!("unknown surface extent, framebuffer extent is required");
-            };
+        let swap_extent = vk::Extent2D {
+            width: extent[0],
+            height: extent[1],
+        };
 
         let image_count = {
             let max_image_count = swap_chain_support_details.capabilities.max_image_count;
@@ -130,15 +132,19 @@ impl Drop for Swapchain {
 }
 
 impl Swapchain {
-    pub fn from_old(old: Arc<Self>) -> Result<Arc<Self>, Box<dyn Error>> {
+    pub fn from_old(old: Arc<Self>, extent: [u32; 2]) -> Result<Arc<Self>, Box<dyn Error>> {
         let device = old.present_queue.lock().unwrap().device.clone();
-        let swapchain_info = SwapchainInfo::new(device, old.swapchain_info.vsync)?;
+        let swapchain_info = SwapchainInfo::new(device, extent, old.swapchain_info.vsync)?;
         Self::new_in(old.present_queue.clone(), swapchain_info, old.swapchain_khr)
     }
 
-    pub fn new(present_queue: Arc<Mutex<Queue>>, vsync: bool) -> Result<Arc<Self>, Box<dyn Error>> {
+    pub fn new(
+        present_queue: Arc<Mutex<Queue>>,
+        extent: [u32; 2],
+        vsync: bool,
+    ) -> Result<Arc<Self>, Box<dyn Error>> {
         let device = present_queue.lock().unwrap().device.clone();
-        let swapchain_info = SwapchainInfo::new(device, vsync)?;
+        let swapchain_info = SwapchainInfo::new(device, extent, vsync)?;
         Self::new_in(present_queue, swapchain_info, vk::SwapchainKHR::null())
     }
 

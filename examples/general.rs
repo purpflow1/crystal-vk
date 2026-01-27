@@ -89,7 +89,9 @@ struct Data {
     last_frame: SystemTime,
 
     prev_future: Option<Box<CommandBufferFuture>>,
-    prev_result: Option<bool>,
+    prev_result: bool,
+
+    extent: [u32; 2],
 }
 
 impl ContextWindow {}
@@ -113,7 +115,7 @@ impl ApplicationHandler for ContextWindow {
             .unwrap()[0]
             .clone();
 
-        let swapchain = Swapchain::new(present_queue, false).unwrap();
+        let swapchain = Swapchain::new(present_queue, [1200, 800], false).unwrap();
         let swapchain_images = swapchain.image_sequence.clone();
 
         let render_target = RenderTarget::new(device.clone(), swapchain_images, 4).unwrap();
@@ -294,16 +296,18 @@ impl ApplicationHandler for ContextWindow {
             last_frame: SystemTime::UNIX_EPOCH,
 
             prev_future: None,
-            prev_result: None,
+            prev_result: false,
+
+            extent: [1200, 800],
         });
     }
 
     fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let window = self.window.as_ref().unwrap();
 
-        let aspect_ratio = window.inner_size().width as f32 / window.inner_size().height as f32;
-
         let data = self.data.as_mut().unwrap();
+
+        let aspect_ratio = data.extent[0] as f32 / data.extent[1] as f32;
 
         let delta_time = SystemTime::now().duration_since(data.last_frame).unwrap();
 
@@ -336,10 +340,8 @@ impl ApplicationHandler for ContextWindow {
             .unwrap()
             .clone();
 
-        if let Some(suboptimal) = data.prev_result
-            && suboptimal
-        {
-            data.swapchain = Swapchain::from_old(data.swapchain.clone()).unwrap();
+        if data.prev_result {
+            data.swapchain = Swapchain::from_old(data.swapchain.clone(), data.extent).unwrap();
             data.render_target = RenderTarget::new(
                 data.device.clone(),
                 data.swapchain.image_sequence.clone(),
@@ -347,7 +349,7 @@ impl ApplicationHandler for ContextWindow {
             )
             .unwrap();
 
-            data.prev_result = Some(false)
+            data.prev_result = false
         }
 
         // TODO not safe
@@ -392,7 +394,7 @@ impl ApplicationHandler for ContextWindow {
         command_buffer_future.sync_with_present(&mut present_future);
 
         command_buffer_future.flush().unwrap();
-        data.prev_result = Some(present_future.present(image_index).unwrap());
+        data.prev_result = present_future.present(image_index).unwrap();
 
         data.last_frame = SystemTime::now();
     }
@@ -407,6 +409,9 @@ impl ApplicationHandler for ContextWindow {
             WindowEvent::CloseRequested => {
                 println!("Stopping window context with close request");
                 event_loop.exit();
+            }
+            WindowEvent::Resized(size) => {
+                self.data.as_mut().unwrap().extent = [size.width, size.height]
             }
             _ => {
                 self.window.as_ref().unwrap().request_redraw();
