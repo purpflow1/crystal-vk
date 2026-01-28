@@ -484,7 +484,7 @@ impl ApplicationHandler for ContextWindow {
 
         let mut lock = per_object_descriptor_set.lock().unwrap();
         lock.bind_buffer(buffer_model.clone(), 0, 0, 1).unwrap();
-        lock.bind_combined_image_sampler(image.clone(), post_process_sampler.clone(), 1, 0, 1)
+        lock.bind_combined_image_sampler(image.clone(), sampler.clone(), 1, 0, 1)
             .unwrap();
 
         drop(lock);
