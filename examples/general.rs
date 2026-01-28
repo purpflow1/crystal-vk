@@ -358,7 +358,7 @@ impl ApplicationHandler for ContextWindow {
             })
             .unwrap();
 
-        let command_buffer_builder = CommandBufferBuilder::new(
+        let mut future = CommandBufferBuilder::new(
             command_allocator.clone(),
             transfer_queue_family_info.index,
             vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
@@ -370,12 +370,11 @@ impl ApplicationHandler for ContextWindow {
         .unwrap()
         .generate_mipmaps(image.clone())
         .unwrap()
-        .build()
+        .build(transfer_queue)
         .unwrap();
 
-        let mut command_buffer = command_buffer_builder.execute(transfer_queue).unwrap();
-        command_buffer.flush().unwrap();
-        command_buffer.wait().unwrap();
+        future.flush().unwrap();
+        future.wait().unwrap();
 
         let mut layout_alloc_info = BTreeMap::new();
 
@@ -670,9 +669,8 @@ impl ApplicationHandler for ContextWindow {
         .draw_indexed(6, 1, 36, 8, 0)
         .end_render_pass();
 
-        let command_buffer = builder.build().unwrap();
+        let mut command_buffer_future = builder.build(queue).unwrap();
 
-        let mut command_buffer_future = command_buffer.execute(queue).unwrap();
         let mut present_future =
             PresentFuture::new(data.device.clone(), data.swapchain.clone()).unwrap();
         command_buffer_future.sync_with_present(&mut present_future);

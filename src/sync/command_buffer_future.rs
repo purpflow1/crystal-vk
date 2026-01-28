@@ -9,6 +9,7 @@ use std::{
 use ash::vk;
 
 use crate::{
+    command::command_buffer_builder::CommandBufferBuilder,
     device::{Device, queue::Queue},
     error,
     errors::SyncError,
@@ -23,7 +24,7 @@ pub struct CommandBufferFuture {
     wait_semaphores: VecDeque<Arc<Semaphore>>,
     signal_semaphores: VecDeque<Arc<Semaphore>>,
 
-    command_buffer: vk::CommandBuffer,
+    builder: Box<CommandBufferBuilder>,
 
     submitted: bool,
     completed: bool,
@@ -82,10 +83,11 @@ impl Future for CommandBufferFuture {
 
 impl CommandBufferFuture {
     pub(crate) fn new(
-        device: Arc<Device>,
+        bulder: Box<CommandBufferBuilder>,
         queue: Arc<Mutex<Queue>>,
-        command_buffer: vk::CommandBuffer,
     ) -> Result<Box<Self>, Box<dyn Error>> {
+        let device = bulder.command_buffer_allocator.device.clone();
+
         let fence_create_info = vk::FenceCreateInfo::default();
         let fence = match unsafe { device.handle.create_fence(&fence_create_info, None) } {
             Ok(fence) => fence,
@@ -102,7 +104,7 @@ impl CommandBufferFuture {
             fence,
             wait_semaphores: VecDeque::new(),
             signal_semaphores,
-            command_buffer,
+            builder: bulder,
             submitted: false,
             completed: false,
             waker: None,
@@ -127,7 +129,7 @@ impl CommandBufferFuture {
             return Ok(());
         }
 
-        let command_buffers = [self.command_buffer];
+        let command_buffers = [self.builder.handle];
 
         let wait_semaphores_vec: Vec<vk::Semaphore> = self
             .wait_semaphores

@@ -8,12 +8,13 @@ use ash::vk;
 
 use crate::{
     buffer::Buffer,
+    command::binding::CommandBufferBinding,
     error,
     errors::DescriptorError,
     image::{Image, sampler::Sampler},
     pipeline::descriptor::{
         DescriptorPool,
-        descriptor_set_layout::{DescriptorSetLayout, binding::Binding},
+        descriptor_set_layout::{DescriptorSetLayout, binding::DescriptorSetBinding},
     },
 };
 
@@ -22,11 +23,13 @@ pub struct DescriptorSet {
     pub(crate) descriptor_set_layout: Arc<DescriptorSetLayout>,
     descriptor_pool: Arc<Mutex<DescriptorPool>>,
 
-    bindings: BTreeMap<u32, Arc<dyn Binding>>,
+    bindings: BTreeMap<u32, Arc<dyn DescriptorSetBinding>>,
 }
 
 unsafe impl Send for DescriptorSet {}
 unsafe impl Sync for DescriptorSet {}
+
+impl CommandBufferBinding for Mutex<DescriptorSet> {}
 
 impl DescriptorSet {
     pub fn bind_combined_image_sampler(

@@ -7,12 +7,14 @@ use ash::vk;
 
 use crate::{
     buffer::Buffer,
-    command::{CommandBufferAllocator, command_buffer::CommandBuffer},
+    command::{CommandBufferAllocator, binding::CommandBufferBinding},
+    device::queue::Queue,
     error,
     errors::CommandError,
     image::Image,
     pipeline::{Pipeline, descriptor::descriptor_set_layout::descriptor_set::DescriptorSet},
     render::RenderTarget,
+    sync::CommandBufferFuture,
 };
 
 #[derive(Default)]
@@ -23,13 +25,17 @@ pub struct CommandBufferBuilderInfo {
 /// # Safety
 /// Everything is boxed
 pub struct CommandBufferBuilder {
-    handle: vk::CommandBuffer,
-    command_buffer_allocator: Arc<CommandBufferAllocator>,
+    pub(crate) handle: vk::CommandBuffer,
+    pub(crate) command_buffer_allocator: Arc<CommandBufferAllocator>,
     info: CommandBufferBuilderInfo,
+    bindings: Vec<Arc<dyn CommandBufferBinding>>,
 }
 
 impl CommandBufferBuilder {
-    pub fn build(self) -> Result<Box<CommandBuffer>, Box<dyn Error>> {
+    pub fn build(
+        self: Box<Self>,
+        queue: Arc<Mutex<Queue>>,
+    ) -> Result<Box<CommandBufferFuture>, Box<dyn Error>> {
         match unsafe {
             self.command_buffer_allocator
                 .device
@@ -42,15 +48,7 @@ impl CommandBufferBuilder {
             }
         }
 
-        self.validate()?;
-        Ok(Box::new(CommandBuffer {
-            handle: self.handle,
-            device: self.command_buffer_allocator.device.clone(),
-        }))
-    }
-
-    fn validate(&self) -> Result<(), Box<dyn Error>> {
-        Ok(())
+        CommandBufferFuture::new(self, queue)
     }
 
     pub fn new(
@@ -100,14 +98,17 @@ impl CommandBufferBuilder {
             handle: command_buffer,
             command_buffer_allocator,
             info: Default::default(),
+            bindings: Vec::new(),
         }))
     }
 
     pub fn transition_image_layout(
-        self: Box<Self>,
+        mut self: Box<Self>,
         image: Arc<Image>,
         layout_new: vk::ImageLayout,
     ) -> Result<Box<Self>, Box<CommandError>> {
+        self.bindings.push(image.clone());
+
         let layout_old = image.info.layout.get();
 
         let mut barrier = vk::ImageMemoryBarrier::default()
@@ -171,9 +172,10 @@ impl CommandBufferBuilder {
     }
 
     pub fn generate_mipmaps(
-        self: Box<Self>,
+        mut self: Box<Self>,
         image: Arc<Image>,
     ) -> Result<Box<Self>, Box<dyn Error>> {
+        self.bindings.push(image.clone());
         let mut barrier = vk::ImageMemoryBarrier::default()
             .image(image.handle)
             .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
@@ -316,11 +318,13 @@ impl CommandBufferBuilder {
         Ok(self)
     }
 
-    pub fn stage_image<T>(
-        self: Box<Self>,
+    pub fn stage_image<T: 'static>(
+        mut self: Box<Self>,
         image: Arc<Image>,
         buffer: Arc<RwLock<Buffer<T>>>,
     ) -> Result<Box<Self>, Box<CommandError>> {
+        self.bindings.push(image.clone());
+        self.bindings.push(buffer.clone());
         let layout = image.info.layout.get();
 
         if layout != vk::ImageLayout::TRANSFER_DST_OPTIMAL {
@@ -384,12 +388,16 @@ impl CommandBufferBuilder {
         self
     }
 
-    pub fn bind_descriptor_sets<T>(
-        self: Box<Self>,
+    pub fn bind_descriptor_sets<T: 'static>(
+        mut self: Box<Self>,
         pipeline: Arc<Pipeline<T>>,
         first_set: u32,
         descriptor_sets: Vec<Arc<Mutex<DescriptorSet>>>,
     ) -> Box<Self> {
+        self.bindings.push(pipeline.clone());
+        for descriptor_set in descriptor_sets.iter() {
+            self.bindings.push(descriptor_set.clone());
+        }
         unsafe {
             self.command_buffer_allocator
                 .device
@@ -409,7 +417,11 @@ impl CommandBufferBuilder {
         self
     }
 
-    pub fn bind_index_buffer<T>(self: Box<Self>, buffer: Arc<RwLock<Buffer<T>>>) -> Box<Self> {
+    pub fn bind_index_buffer<T: 'static>(
+        mut self: Box<Self>,
+        buffer: Arc<RwLock<Buffer<T>>>,
+    ) -> Box<Self> {
+        self.bindings.push(buffer.clone());
         let buffer_lock = buffer.read().unwrap();
         let buffer_raw = buffer_lock.as_raw();
         unsafe {
@@ -422,7 +434,11 @@ impl CommandBufferBuilder {
         self
     }
 
-    pub fn bind_vertex_buffer<T>(self: Box<Self>, buffer: Arc<RwLock<Buffer<T>>>) -> Box<Self> {
+    pub fn bind_vertex_buffer<T: 'static>(
+        mut self: Box<Self>,
+        buffer: Arc<RwLock<Buffer<T>>>,
+    ) -> Box<Self> {
+        self.bindings.push(buffer.clone());
         unsafe {
             let buffer_lock = buffer.read().unwrap();
             let buffer_raw = buffer_lock.as_raw();
@@ -454,11 +470,12 @@ impl CommandBufferBuilder {
         self
     }
 
-    pub fn bind_pipeline<T>(
+    pub fn bind_pipeline<T: 'static>(
         mut self: Box<Self>,
         pipeline: Arc<Pipeline<T>>,
         pipeline_bind_point: vk::PipelineBindPoint,
     ) -> Box<Self> {
+        self.bindings.push(pipeline.clone());
         self.info.last_pipeline_bind_point = pipeline_bind_point;
 
         unsafe {
@@ -483,10 +500,11 @@ impl CommandBufferBuilder {
     }
 
     pub fn begin_render_pass(
-        self: Box<Self>,
+        mut self: Box<Self>,
         render_target: Arc<RenderTarget>,
         image_index: u32,
     ) -> Result<Box<Self>, Box<dyn Error>> {
+        self.bindings.push(render_target.clone());
         let color = 0.3f32;
         let clear_value_color = vk::ClearValue {
             color: vk::ClearColorValue {

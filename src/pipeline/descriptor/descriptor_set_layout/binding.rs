@@ -1,1 +1,1 @@
-pub trait Binding {}
+pub trait DescriptorSetBinding {}

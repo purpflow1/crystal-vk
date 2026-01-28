@@ -11,8 +11,9 @@ use ash::vk;
 
 use crate::{
     buffer::memory::{BufferData, BufferInfo},
+    command::binding::CommandBufferBinding,
     device::Device,
-    pipeline::descriptor::descriptor_set_layout::binding::Binding,
+    pipeline::descriptor::descriptor_set_layout::binding::DescriptorSetBinding,
 };
 
 pub struct BufferCreateInfo {
@@ -30,7 +31,11 @@ pub struct Buffer<T> {
     _t: PhantomData<T>,
 }
 
-impl<T> Binding for RwLock<Buffer<T>> {}
+unsafe impl<T> Send for Buffer<T> {}
+unsafe impl<T> Sync for Buffer<T> {}
+
+impl<T> CommandBufferBinding for RwLock<Buffer<T>> {}
+impl<T> DescriptorSetBinding for RwLock<Buffer<T>> {}
 
 impl<T> Buffer<T> {
     pub fn new(

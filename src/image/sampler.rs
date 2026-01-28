@@ -4,7 +4,7 @@ use ash::vk;
 
 use crate::{
     device::Device, error, errors::ImageError, image::Image,
-    pipeline::descriptor::descriptor_set_layout::binding::Binding,
+    pipeline::descriptor::descriptor_set_layout::binding::DescriptorSetBinding,
 };
 
 pub struct SamplerInfo {
@@ -19,8 +19,8 @@ pub struct Sampler {
     pub device: Arc<Device>,
 }
 
-impl Binding for Sampler {}
-impl Binding for (Arc<Image>, Arc<Sampler>) {}
+impl DescriptorSetBinding for Sampler {}
+impl DescriptorSetBinding for (Arc<Image>, Arc<Sampler>) {}
 
 impl Drop for Sampler {
     fn drop(&mut self) {

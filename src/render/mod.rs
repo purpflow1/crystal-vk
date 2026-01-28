@@ -11,6 +11,7 @@ use std::{
 use ash::vk;
 
 use crate::{
+    command::binding::CommandBufferBinding,
     device::Device,
     error,
     errors::DeviceError,
@@ -28,6 +29,8 @@ pub struct RenderTarget {
 
 unsafe impl Send for RenderTarget {}
 unsafe impl Sync for RenderTarget {}
+
+impl CommandBufferBinding for RenderTarget {}
 
 impl RenderTarget {
     pub fn new(

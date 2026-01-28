@@ -3,6 +3,7 @@ use std::{error::Error, iter::zip, marker::PhantomData, sync::Arc};
 use ash::vk;
 
 use crate::{
+    command::binding::CommandBufferBinding,
     error,
     errors::PipelineError,
     pipeline::{
@@ -46,6 +47,9 @@ pub struct Pipeline<V> {
     _tp: PhantomData<V>,
 }
 
+unsafe impl<T> Send for Pipeline<T> {}
+unsafe impl<T> Sync for Pipeline<T> {}
+
 impl<V> Drop for Pipeline<V> {
     fn drop(&mut self) {
         unsafe {
@@ -56,6 +60,8 @@ impl<V> Drop for Pipeline<V> {
         }
     }
 }
+
+impl<T> CommandBufferBinding for Pipeline<T> {}
 
 impl<V: AttributeDescriptor> Pipeline<V> {
     pub fn new_graphics(

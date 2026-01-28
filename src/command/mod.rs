@@ -1,4 +1,4 @@
-pub mod command_buffer;
+pub mod binding;
 pub mod command_buffer_builder;
 
 use std::{
@@ -18,7 +18,7 @@ use crate::{
 /// Allocator per thread
 pub struct CommandBufferAllocator {
     pub(crate) pools: BTreeMap<u32, Arc<Mutex<vk::CommandPool>>>,
-    device: Arc<Device>,
+    pub device: Arc<Device>,
 }
 
 impl Drop for CommandBufferAllocator {

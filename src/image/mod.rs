@@ -5,10 +5,11 @@ use std::{cell::Cell, error::Error, sync::Arc};
 use ash::vk;
 
 use crate::{
+    command::binding::CommandBufferBinding,
     device::Device,
     error,
     errors::{DeviceError, ImageError},
-    pipeline::descriptor::descriptor_set_layout::binding::Binding,
+    pipeline::descriptor::descriptor_set_layout::binding::DescriptorSetBinding,
 };
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -53,7 +54,8 @@ pub struct Image {
 unsafe impl Send for Image {}
 unsafe impl Sync for Image {}
 
-impl Binding for Image {}
+impl DescriptorSetBinding for Image {}
+impl CommandBufferBinding for Image {}
 
 impl Drop for Image {
     fn drop(&mut self) {
