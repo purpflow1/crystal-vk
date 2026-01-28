@@ -292,7 +292,7 @@ impl ApplicationHandler for ContextWindow {
         let buffer_model = Buffer::<glam::Mat4>::new(
             device.clone(),
             BufferCreateInfo {
-                len: 2,
+                len: 1,
                 sharing_mode: vk::SharingMode::EXCLUSIVE,
                 usage: vk::BufferUsageFlags::STORAGE_BUFFER,
                 properties: vk::MemoryPropertyFlags::HOST_VISIBLE,
