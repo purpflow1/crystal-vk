@@ -1,10 +1,10 @@
+use super::*;
+
 use std::{
     collections::BTreeMap,
-    f32::consts::PI,
     ffi::CString,
     fs::File,
     io::{BufReader, Read},
-    sync::{Arc, Mutex, RwLock},
     time::SystemTime,
 };
 
@@ -12,14 +12,10 @@ use ash::vk::{self, DescriptorType, ShaderStageFlags};
 use crystal_vk::{
     buffer::{Buffer, BufferCreateInfo},
     command::{CommandBufferAllocator, command_buffer_builder::CommandBufferBuilder},
-    device::{
-        Device,
-        queue::{Queue, QueuePool},
-    },
+    device::{Device, queue::Queue},
     image::sampler::{Sampler, SamplerInfo},
     pipeline::{
-        Pipeline, PipelineInfo,
-        attribute::{Attribute, AttributeDescriptor},
+        PipelineInfo,
         descriptor::{
             DescriptorPool,
             descriptor_set_layout::{
@@ -30,79 +26,13 @@ use crystal_vk::{
         shader::Shader,
     },
     render::{RenderTarget, swapchain::Swapchain},
-    sync::{CommandBufferFuture, GpuFuture, PresentFuture, SwapchainFuture},
 };
-use winit::{
-    application::ApplicationHandler,
-    dpi::LogicalSize,
-    event::WindowEvent,
-    event_loop::{ControlFlow, EventLoop},
-    window::Window,
-};
+use winit::{dpi::LogicalSize, window::Window};
 
-type Vec3 = [f32; 3];
-type Vec2 = [f32; 2];
+use crate::vulkan_context::VulkanContext;
 
-pub type Index = u16;
-
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
-pub struct VertexTexture(Vec3, Vec2);
-
-impl AttributeDescriptor for VertexTexture {
-    fn get_attributes() -> &'static [Attribute] {
-        &[
-            Attribute {
-                size: size_of::<Vec3>(),
-                offset: 0,
-            },
-            Attribute {
-                size: size_of::<Vec2>(),
-                offset: size_of::<Vec3>(),
-            },
-        ]
-    }
-}
-
-#[derive(Default)]
-struct ContextWindow {
-    data: Option<Data>,
-    window: Option<Window>,
-}
-
-struct Data {
-    device: Arc<Device>,
-    queues: QueuePool,
-    post_process_render_target: Arc<RenderTarget>,
-    swapchain_render_target: Arc<RenderTarget>,
-    swapchain: Arc<Swapchain>,
-
-    command_allocator: Arc<CommandBufferAllocator>,
-
-    buffer_vert: Arc<RwLock<Buffer<VertexTexture>>>,
-    buffer_ind: Arc<RwLock<Buffer<Index>>>,
-    buffer_model: Arc<RwLock<Buffer<glam::Mat4>>>,
-    buffer_resolution_uniform: Arc<RwLock<Buffer<glam::Vec2>>>,
-    post_process_sampler: Arc<Sampler>,
-
-    post_process_pipeline: Arc<Pipeline<VertexTexture>>,
-    pipeline: Arc<Pipeline<VertexTexture>>,
-    per_object_descriptor_set: Arc<Mutex<DescriptorSet>>,
-    post_process_descriptor_set: Arc<Mutex<DescriptorSet>>,
-
-    startup_time: SystemTime,
-    last_frame: SystemTime,
-
-    _prev_future: Option<Box<CommandBufferFuture>>,
-    recreate_swapchain: bool,
-
-    extent: [u32; 2],
-}
-
-impl ContextWindow {}
-
-impl ApplicationHandler for ContextWindow {
-    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+impl VulkanContext {
+    pub fn new(event_loop: &winit::event_loop::ActiveEventLoop) -> (Self, Window) {
         let window = {
             event_loop
                 .create_window(
@@ -488,222 +418,36 @@ impl ApplicationHandler for ContextWindow {
 
         drop(lock);
 
-        self.window = Some(window);
-        self.data = Some(Data {
-            device,
-            queues,
-            post_process_render_target,
-            swapchain_render_target,
-            swapchain,
+        (
+            Self {
+                device,
+                queues,
+                post_process_render_target,
+                swapchain_render_target,
+                swapchain,
 
-            command_allocator,
+                command_allocator,
 
-            buffer_ind: buffer_index,
-            buffer_model,
-            buffer_vert: buffer_vertex,
-            buffer_resolution_uniform,
-            post_process_sampler,
+                buffer_ind: buffer_index,
+                buffer_model,
+                buffer_vert: buffer_vertex,
+                buffer_resolution_uniform,
+                post_process_sampler,
 
-            post_process_pipeline,
-            pipeline: world_object_pipeline,
-            per_object_descriptor_set: per_object_descriptor_set.clone(),
-            post_process_descriptor_set,
+                post_process_pipeline,
+                pipeline: world_object_pipeline,
+                per_object_descriptor_set: per_object_descriptor_set.clone(),
+                post_process_descriptor_set,
 
-            startup_time: SystemTime::now(),
-            last_frame: SystemTime::UNIX_EPOCH,
+                startup_time: SystemTime::now(),
+                last_frame: SystemTime::UNIX_EPOCH,
 
-            _prev_future: None,
-            recreate_swapchain: false,
+                _prev_future: None,
+                recreate_swapchain: false,
 
-            extent: [1200, 800],
-        });
+                extent: [1200, 800],
+            },
+            window,
+        )
     }
-
-    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {}
-
-    fn window_event(
-        &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        _window_id: winit::window::WindowId,
-        event: winit::event::WindowEvent,
-    ) {
-        let window = self.window.as_ref().unwrap();
-
-        let data = self.data.as_mut().unwrap();
-
-        let aspect_ratio = data.extent[0] as f32 / data.extent[1] as f32;
-
-        let delta_time = SystemTime::now().duration_since(data.last_frame).unwrap();
-
-        window.set_title(format!("FPS: {}", (1. / delta_time.as_secs_f32()) as u32).as_str());
-
-        let camera = glam::Mat4::look_at_lh(
-            glam::Vec3::new(0., 0., -1.),
-            glam::Vec3::ZERO,
-            glam::Vec3::new(0., 1., 0.),
-        );
-
-        let perspective = glam::Mat4::perspective_lh(PI / 3., aspect_ratio, 0.1, 100.);
-
-        let render_camera = perspective * camera;
-
-        let mut buffer = data.buffer_model.write().unwrap();
-
-        let seconds = data.startup_time.elapsed().unwrap().as_secs_f32();
-
-        let model = glam::Mat4::from_scale_rotation_translation(
-            glam::Vec3::new(0.8, 0.8, 0.8),
-            glam::Quat::from_rotation_y(seconds) * glam::Quat::from_rotation_z(seconds),
-            glam::Vec3::new(0., 0., 1.),
-        );
-
-        buffer[0] = render_camera * model;
-
-        let mut buffer = data.buffer_resolution_uniform.write().unwrap();
-        buffer[0] = glam::Vec2::new(data.extent[0] as f32, data.extent[1] as f32);
-
-        drop(buffer);
-
-        let (family_info, queues) = data
-            .queues
-            .iter()
-            .find(|(family, _)| family.flags.contains(vk::QueueFlags::GRAPHICS))
-            .unwrap();
-
-        if data.recreate_swapchain {
-            data.swapchain = Swapchain::from_old(data.swapchain.clone(), data.extent).unwrap();
-
-            let post_process_image = crystal_vk::image::Image::new(
-                data.device.clone(),
-                data.extent,
-                vk::Format::R8G8B8A8_SRGB,
-            )
-            .unwrap();
-
-            let mut lock = data.post_process_descriptor_set.lock().unwrap();
-            lock.bind_combined_image_sampler(
-                post_process_image.clone(),
-                data.post_process_sampler.clone(),
-                1,
-                0,
-                1,
-            )
-            .unwrap();
-
-            drop(lock);
-
-            data.post_process_render_target =
-                RenderTarget::new(data.device.clone(), vec![post_process_image.clone()], 4)
-                    .unwrap();
-
-            data.swapchain_render_target = RenderTarget::new(
-                data.device.clone(),
-                data.swapchain.image_sequence.clone(),
-                4,
-            )
-            .unwrap();
-
-            data.recreate_swapchain = false
-        }
-
-        // TODO not safe
-        let mut swapchain_future =
-            SwapchainFuture::new(data.device.clone(), data.swapchain.clone()).unwrap();
-
-        // blocks until aviability
-        let (image_index, _suboptimal) = match swapchain_future.acquire_next_image() {
-            Ok(result) => result,
-            Err(_e) => {
-                dbg!(_e);
-                return;
-            }
-        };
-
-        let queue = queues[0].clone();
-
-        let builder = CommandBufferBuilder::new(
-            data.command_allocator.clone(),
-            family_info.index,
-            vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
-        )
-        .unwrap()
-        .begin_render_pass(data.post_process_render_target.clone(), 0)
-        .unwrap()
-        .bind_viewport_and_scissor(
-            vec![vk::Viewport {
-                width: data.extent[0] as f32,
-                height: data.extent[1] as f32,
-                ..Default::default()
-            }],
-            vec![vk::Rect2D {
-                extent: vk::Extent2D {
-                    width: data.extent[0],
-                    height: data.extent[1],
-                },
-                ..Default::default()
-            }],
-        )
-        .bind_pipeline(data.pipeline.clone(), vk::PipelineBindPoint::GRAPHICS)
-        .bind_vertex_buffer(data.buffer_vert.clone())
-        .bind_index_buffer(data.buffer_ind.clone())
-        .bind_descriptor_sets(
-            data.pipeline.clone(),
-            0,
-            vec![data.per_object_descriptor_set.clone()],
-        )
-        .draw_indexed(36, 1, 0, 0, 0)
-        .end_render_pass()
-        .begin_render_pass(data.swapchain_render_target.clone(), image_index)
-        .unwrap()
-        .bind_pipeline(
-            data.post_process_pipeline.clone(),
-            vk::PipelineBindPoint::GRAPHICS,
-        )
-        .bind_vertex_buffer(data.buffer_vert.clone())
-        .bind_index_buffer(data.buffer_ind.clone())
-        .bind_descriptor_sets(
-            data.post_process_pipeline.clone(),
-            0,
-            vec![data.post_process_descriptor_set.clone()],
-        )
-        .draw_indexed(6, 1, 36, 8, 0)
-        .end_render_pass();
-
-        let mut command_buffer_future = builder.build(queue).unwrap();
-
-        let mut present_future =
-            PresentFuture::new(data.device.clone(), data.swapchain.clone()).unwrap();
-        command_buffer_future.sync_with_present(&mut present_future);
-
-        command_buffer_future.flush().unwrap();
-        data.recreate_swapchain = present_future.present(image_index).unwrap();
-
-        data.last_frame = SystemTime::now();
-
-        match event {
-            WindowEvent::CloseRequested => {
-                println!("Stopping window context with close request");
-                event_loop.exit();
-            }
-            WindowEvent::Resized(size) => data.extent = [size.width, size.height],
-            _ => {
-                self.window.as_ref().unwrap().request_redraw();
-            }
-        }
-    }
-
-    fn exiting(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
-        // Wayland surface can be destroyed before vulkan resources removal
-        self.data = None;
-    }
-}
-
-fn main() {
-    let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Poll);
-
-    let mut context = ContextWindow::default();
-    event_loop
-        .run_app(&mut context)
-        .expect("cannot run event loop");
 }
