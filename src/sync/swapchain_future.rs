@@ -13,14 +13,14 @@ use crate::{
     error,
     errors::{SwapchainOutOfDate, SyncError},
     render::swapchain::Swapchain,
-    sync::GpuFuture,
+    sync::{GpuFuture, Semaphore},
 };
 
 pub struct SwapchainFuture {
     device: Arc<Device>,
     swapchain: Arc<Swapchain>,
 
-    signal_semaphore: vk::Semaphore,
+    signal_semaphore: Arc<Semaphore>,
     fence: vk::Fence,
 
     submitted: bool,
@@ -43,9 +43,6 @@ impl Drop for SwapchainFuture {
         }
         unsafe {
             self.device.handle.destroy_fence(self.fence, None);
-            self.device
-                .handle
-                .destroy_semaphore(self.signal_semaphore, None);
         }
     }
 }
@@ -73,13 +70,13 @@ impl Future for SwapchainFuture {
 }
 
 impl GpuFuture for SwapchainFuture {
-    fn get_signal_semaphores(&self) -> VecDeque<vk::Semaphore> {
+    fn get_signal_semaphores(&self) -> VecDeque<Arc<Semaphore>> {
         let mut deque = VecDeque::new();
-        deque.push_back(self.signal_semaphore);
+        deque.push_back(self.signal_semaphore.clone());
         deque
     }
 
-    fn set_wait_semaphores(&mut self, _semaphores: VecDeque<vk::Semaphore>) {}
+    fn set_wait_semaphores(&mut self, _semaphores: VecDeque<Arc<Semaphore>>) {}
 }
 
 impl SwapchainFuture {
@@ -87,16 +84,8 @@ impl SwapchainFuture {
         device: Arc<Device>,
         swapchain: Arc<Swapchain>,
     ) -> Result<Box<Self>, Box<dyn Error>> {
-        let semaphore_create_info = vk::SemaphoreCreateInfo::default();
-
-        let signal_semaphore = unsafe {
-            device
-                .handle
-                .create_semaphore(&semaphore_create_info, None)?
-        };
-
+        let signal_semaphore = Semaphore::new(device.clone())?;
         let fence_create_info = vk::FenceCreateInfo::default();
-
         let fence = unsafe { device.handle.create_fence(&fence_create_info, None)? };
 
         Ok(Box::new(Self {
@@ -121,7 +110,7 @@ impl SwapchainFuture {
             self.swapchain.swapchain.acquire_next_image(
                 self.swapchain.swapchain_khr,
                 u64::MAX,
-                self.signal_semaphore,
+                self.signal_semaphore.handle,
                 vk::Fence::null(),
             )
         } {

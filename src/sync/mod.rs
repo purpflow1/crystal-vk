@@ -1,17 +1,18 @@
 mod command_buffer_future;
 mod present_future;
+mod semaphore;
 mod swapchain_future;
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 
-use ash::vk;
 pub use command_buffer_future::*;
 pub use present_future::*;
+pub(crate) use semaphore::*;
 pub use swapchain_future::*;
 
 pub trait GpuFuture: Future {
-    fn set_wait_semaphores(&mut self, semaphores: VecDeque<vk::Semaphore>);
-    fn get_signal_semaphores(&self) -> VecDeque<vk::Semaphore>;
+    fn set_wait_semaphores(&mut self, semaphores: VecDeque<Arc<Semaphore>>);
+    fn get_signal_semaphores(&self) -> VecDeque<Arc<Semaphore>>;
 
     fn sync_with_present(&self, after: &mut Box<PresentFuture>)
     where

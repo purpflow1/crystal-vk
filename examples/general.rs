@@ -702,7 +702,7 @@ impl ApplicationHandler for ContextWindow {
 
 fn main() {
     let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Wait);
+    event_loop.set_control_flow(ControlFlow::Poll);
 
     let mut context = ContextWindow::default();
     event_loop

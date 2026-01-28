@@ -12,7 +12,7 @@ use crate::{
     device::{Device, queue::Queue},
     error,
     errors::SyncError,
-    sync::GpuFuture,
+    sync::{GpuFuture, Semaphore},
 };
 
 pub struct CommandBufferFuture {
@@ -20,8 +20,8 @@ pub struct CommandBufferFuture {
     queue: Arc<Mutex<Queue>>,
 
     fence: vk::Fence,
-    wait_semaphores: VecDeque<vk::Semaphore>,
-    signal_semaphores: VecDeque<vk::Semaphore>,
+    wait_semaphores: VecDeque<Arc<Semaphore>>,
+    signal_semaphores: VecDeque<Arc<Semaphore>>,
 
     command_buffer: vk::CommandBuffer,
 
@@ -40,8 +40,6 @@ impl Drop for CommandBufferFuture {
         //     };
         // }
 
-        self.cleanup_resources();
-
         unsafe {
             self.device.handle.destroy_fence(self.fence, None);
         }
@@ -49,14 +47,14 @@ impl Drop for CommandBufferFuture {
 }
 
 impl GpuFuture for CommandBufferFuture {
-    fn get_signal_semaphores(&self) -> VecDeque<vk::Semaphore> {
+    fn get_signal_semaphores(&self) -> VecDeque<Arc<Semaphore>> {
         self.signal_semaphores.clone()
     }
 
-    fn set_wait_semaphores(&mut self, semaphores: VecDeque<vk::Semaphore>) {
+    fn set_wait_semaphores(&mut self, semaphores: VecDeque<Arc<Semaphore>>) {
         semaphores
             .iter()
-            .for_each(|s| self.wait_semaphores.push_back(*s));
+            .for_each(|s| self.wait_semaphores.push_back(s.clone()));
     }
 }
 
@@ -94,16 +92,8 @@ impl CommandBufferFuture {
             Err(e) => return error!(SyncError, "cannot create fence: {e}"),
         };
 
-        let semaphore_create_info = vk::SemaphoreCreateInfo::default();
-
         let mut signal_semaphores = VecDeque::new();
-
-        let signal_semaphore = unsafe {
-            device
-                .handle
-                .create_semaphore(&semaphore_create_info, None)?
-        };
-
+        let signal_semaphore = Semaphore::new(device.clone())?;
         signal_semaphores.push_back(signal_semaphore);
 
         Ok(Box::new(Self {
@@ -139,10 +129,18 @@ impl CommandBufferFuture {
 
         let command_buffers = [self.command_buffer];
 
-        let wait_semaphores_vec: Vec<vk::Semaphore> =
-            self.wait_semaphores.iter().copied().collect();
-        let signal_semaphores_vec: Vec<vk::Semaphore> =
-            self.signal_semaphores.iter().copied().collect();
+        let wait_semaphores_vec: Vec<vk::Semaphore> = self
+            .wait_semaphores
+            .iter()
+            .cloned()
+            .map(|s| s.handle)
+            .collect();
+        let signal_semaphores_vec: Vec<vk::Semaphore> = self
+            .signal_semaphores
+            .iter()
+            .cloned()
+            .map(|s| s.handle)
+            .collect();
 
         let wait_stages = vec![vk::PipelineStageFlags::TOP_OF_PIPE; wait_semaphores_vec.len()];
 
@@ -175,20 +173,11 @@ impl CommandBufferFuture {
         match result {
             Ok(true) => {
                 self.completed = true;
-                self.cleanup_resources();
                 Ok(true)
             }
             Ok(false) => Ok(false),
             Err(vk::Result::NOT_READY) => Ok(false),
             Err(e) => error!(SyncError, "cannot get fence status: {e}"),
-        }
-    }
-
-    fn cleanup_resources(&mut self) {
-        for semaphore in self.signal_semaphores.drain(..) {
-            unsafe {
-                self.device.handle.destroy_semaphore(semaphore, None);
-            }
         }
     }
 }

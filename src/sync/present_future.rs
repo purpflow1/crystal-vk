@@ -13,14 +13,14 @@ use crate::{
     error,
     errors::{QueueError, SyncError},
     render::swapchain::Swapchain,
-    sync::GpuFuture,
+    sync::{GpuFuture, Semaphore},
 };
 
 pub struct PresentFuture {
     device: Arc<Device>,
     swapchain: Arc<Swapchain>,
 
-    wait_semaphores: VecDeque<vk::Semaphore>,
+    wait_semaphores: VecDeque<Arc<Semaphore>>,
     fence: vk::Fence,
 
     submitted: bool,
@@ -54,10 +54,11 @@ impl Future for PresentFuture {
         let image_index = self.image_index;
 
         if !self.submitted
-            && let Err(e) = self.present(image_index) {
-                self.completed = true;
-                return Poll::Ready(Err(e));
-            }
+            && let Err(e) = self.present(image_index)
+        {
+            self.completed = true;
+            return Poll::Ready(Err(e));
+        }
 
         match self.check_completion() {
             Ok(true) => Poll::Ready(Ok((self.image_index, self.suboptimal))),
@@ -71,11 +72,11 @@ impl Future for PresentFuture {
 }
 
 impl GpuFuture for PresentFuture {
-    fn get_signal_semaphores(&self) -> VecDeque<vk::Semaphore> {
+    fn get_signal_semaphores(&self) -> VecDeque<Arc<Semaphore>> {
         VecDeque::with_capacity(0)
     }
 
-    fn set_wait_semaphores(&mut self, semaphores: VecDeque<vk::Semaphore>) {
+    fn set_wait_semaphores(&mut self, semaphores: VecDeque<Arc<Semaphore>>) {
         self.wait_semaphores = semaphores
     }
 }
@@ -108,8 +109,12 @@ impl PresentFuture {
             return Ok(self.suboptimal);
         }
 
-        let wait_semaphores_vec: Vec<vk::Semaphore> =
-            self.wait_semaphores.iter().copied().collect();
+        let wait_semaphores_vec: Vec<vk::Semaphore> = self
+            .wait_semaphores
+            .iter()
+            .cloned()
+            .map(|s| s.handle)
+            .collect();
         let swapchains = [self.swapchain.swapchain_khr];
         let image_indices = [image_index];
 
