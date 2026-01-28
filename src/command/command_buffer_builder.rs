@@ -283,6 +283,24 @@ impl CommandBufferBuilder {
         self
     }
 
+    pub fn bind_viewport_and_scissor(
+        self: Box<Self>,
+        viewports: Vec<vk::Viewport>,
+        scissors: Vec<vk::Rect2D>,
+    ) -> Box<Self> {
+        unsafe {
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_set_viewport(self.handle, 0, &viewports);
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_set_scissor(self.handle, 0, &scissors);
+        }
+        self
+    }
+
     pub fn bind_pipeline<T>(
         mut self: Box<Self>,
         pipeline: Arc<Pipeline<T>>,
@@ -290,18 +308,7 @@ impl CommandBufferBuilder {
     ) -> Box<Self> {
         self.info.last_pipeline_bind_point = pipeline_bind_point;
 
-        let viewports = &pipeline.info.viewports;
-        let scissors = &pipeline.info.scissors;
-
         unsafe {
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_set_viewport(self.handle, 0, viewports);
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_set_scissor(self.handle, 0, scissors);
             self.command_buffer_allocator
                 .device
                 .handle

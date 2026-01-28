@@ -105,7 +105,9 @@ impl ApplicationHandler for ContextWindow {
         let window = {
             event_loop
                 .create_window(
-                    Window::default_attributes().with_inner_size(LogicalSize::new(600, 400)),
+                    Window::default_attributes()
+                        .with_inner_size(LogicalSize::new(300, 300))
+                        .with_min_inner_size(LogicalSize::new(100, 100)),
                 )
                 .unwrap()
         };
@@ -119,7 +121,7 @@ impl ApplicationHandler for ContextWindow {
             .unwrap()[0]
             .clone();
 
-        let swapchain = Swapchain::new(present_queue, [1200, 800], false).unwrap();
+        let swapchain = Swapchain::new(present_queue, [600, 600], true).unwrap();
         let swapchain_images = swapchain.image_sequence.clone();
 
         let render_target = RenderTarget::new(device.clone(), swapchain_images, 4).unwrap();
@@ -223,14 +225,14 @@ impl ApplicationHandler for ContextWindow {
             buffer.copy_from_slice(&[
                 // cube bottom
                 VertexTexture([0.5, -0.5, 0.5], [0.0, 0.0]),
-                VertexTexture([0.5, -0.5, -0.5], [0.5, 0.0]),
-                VertexTexture([-0.5, -0.5, 0.5], [0.0, 0.5]),
-                VertexTexture([-0.5, -0.5, -0.5], [0.5, 0.5]),
+                VertexTexture([0.5, -0.5, -0.5], [1.0, 0.0]),
+                VertexTexture([-0.5, -0.5, 0.5], [0.0, 1.0]),
+                VertexTexture([-0.5, -0.5, -0.5], [1.0, 1.0]),
                 // cube top
-                VertexTexture([0.5, 0.5, 0.5], [0.5, 0.5]),
-                VertexTexture([0.5, 0.5, -0.5], [1., 0.5]),
-                VertexTexture([-0.5, 0.5, 0.5], [0.5, 1.]),
-                VertexTexture([-0.5, 0.5, -0.5], [1., 1.]),
+                VertexTexture([0.5, 0.5, 0.5], [0.0, 0.0]),
+                VertexTexture([0.5, 0.5, -0.5], [1.0, 0.0]),
+                VertexTexture([-0.5, 0.5, 0.5], [0.0, 1.0]),
+                VertexTexture([-0.5, 0.5, -0.5], [1.0, 1.0]),
                 // screen plane
                 VertexTexture([-1., -1., 0.], [0., 0.]),
                 VertexTexture([1., -1., 0.], [1., 0.]),
@@ -386,12 +388,19 @@ impl ApplicationHandler for ContextWindow {
         });
     }
 
-    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {}
+
+    fn window_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        _window_id: winit::window::WindowId,
+        event: winit::event::WindowEvent,
+    ) {
         let window = self.window.as_ref().unwrap();
 
         let data = self.data.as_mut().unwrap();
 
-        let aspect_ratio = data.extent[1] as f32 / data.extent[0] as f32;
+        let aspect_ratio = data.extent[0] as f32 / data.extent[1] as f32;
 
         let delta_time = SystemTime::now().duration_since(data.last_frame).unwrap();
 
@@ -405,19 +414,19 @@ impl ApplicationHandler for ContextWindow {
 
         let perspective = glam::Mat4::perspective_lh(PI / 3., aspect_ratio, 0.1, 100.);
 
+        let render_camera = perspective * camera;
+
         let mut buffer = data.buffer_model.write().unwrap();
 
         let seconds = data.startup_time.elapsed().unwrap().as_secs_f32();
 
         let model = glam::Mat4::from_scale_rotation_translation(
             glam::Vec3::new(0.8, 0.8, 0.8),
-            glam::Quat::from_rotation_y(seconds)
-                * glam::Quat::from_rotation_z(seconds)
-                * glam::Quat::from_rotation_x(seconds),
+            glam::Quat::from_rotation_y(seconds) * glam::Quat::from_rotation_z(seconds),
             glam::Vec3::new(0., 0., 1.),
         );
 
-        buffer[0] = perspective * (camera * model);
+        buffer[0] = render_camera * model;
 
         let (family_info, queues) = data
             .queues
@@ -461,6 +470,20 @@ impl ApplicationHandler for ContextWindow {
         .unwrap()
         .begin_render_pass(data.render_target.clone(), image_index)
         .unwrap()
+        .bind_viewport_and_scissor(
+            vec![vk::Viewport {
+                width: data.extent[0] as f32,
+                height: data.extent[1] as f32,
+                ..Default::default()
+            }],
+            vec![vk::Rect2D {
+                extent: vk::Extent2D {
+                    width: data.extent[0],
+                    height: data.extent[1],
+                },
+                ..Default::default()
+            }],
+        )
         .bind_pipeline(data.pipeline.clone(), vk::PipelineBindPoint::GRAPHICS)
         .bind_vertex_buffer(data.buffer_vert.clone())
         .bind_index_buffer(data.buffer_ind.clone())
@@ -483,22 +506,13 @@ impl ApplicationHandler for ContextWindow {
         data.prev_result = present_future.present(image_index).unwrap();
 
         data.last_frame = SystemTime::now();
-    }
 
-    fn window_event(
-        &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        _window_id: winit::window::WindowId,
-        event: winit::event::WindowEvent,
-    ) {
         match event {
             WindowEvent::CloseRequested => {
                 println!("Stopping window context with close request");
                 event_loop.exit();
             }
-            WindowEvent::Resized(size) => {
-                self.data.as_mut().unwrap().extent = [size.width, size.height]
-            }
+            WindowEvent::Resized(size) => data.extent = [size.width, size.height],
             _ => {
                 self.window.as_ref().unwrap().request_redraw();
             }
@@ -513,7 +527,7 @@ impl ApplicationHandler for ContextWindow {
 
 fn main() {
     let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Poll);
+    event_loop.set_control_flow(ControlFlow::Wait);
 
     let mut context = ContextWindow::default();
     event_loop
