@@ -16,7 +16,6 @@ use crystal_vk::{
         Device,
         queue::{Queue, QueuePool},
     },
-    errors::SwapchainOutOfDate,
     image::sampler::{Sampler, SamplerInfo},
     pipeline::{
         Pipeline, PipelineInfo,
@@ -33,7 +32,6 @@ use crystal_vk::{
     render::{RenderTarget, swapchain::Swapchain},
     sync::{CommandBufferFuture, GpuFuture, PresentFuture, SwapchainFuture},
 };
-use png::BitDepth;
 use winit::{
     application::ApplicationHandler,
     dpi::LogicalSize,
@@ -93,7 +91,7 @@ struct Data {
     last_frame: SystemTime,
 
     prev_future: Option<Box<CommandBufferFuture>>,
-    prev_result: bool,
+    recreate_swapchain: bool,
 
     extent: [u32; 2],
 }
@@ -346,7 +344,7 @@ impl ApplicationHandler for ContextWindow {
         .unwrap()
         .stage_image(image.clone(), image_buffer.clone())
         .unwrap()
-        .transition_image_layout(image.clone(), vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+        .generate_mipmaps(image.clone())
         .unwrap()
         .build()
         .unwrap();
@@ -382,7 +380,7 @@ impl ApplicationHandler for ContextWindow {
             last_frame: SystemTime::UNIX_EPOCH,
 
             prev_future: None,
-            prev_result: false,
+            recreate_swapchain: false,
 
             extent: [1200, 800],
         });
@@ -435,7 +433,7 @@ impl ApplicationHandler for ContextWindow {
             .unwrap()
             .clone();
 
-        if data.prev_result {
+        if data.recreate_swapchain {
             data.swapchain = Swapchain::from_old(data.swapchain.clone(), data.extent).unwrap();
             data.render_target = RenderTarget::new(
                 data.device.clone(),
@@ -444,7 +442,7 @@ impl ApplicationHandler for ContextWindow {
             )
             .unwrap();
 
-            data.prev_result = false
+            data.recreate_swapchain = false
         }
 
         // TODO not safe
@@ -503,7 +501,7 @@ impl ApplicationHandler for ContextWindow {
         command_buffer_future.sync_with_present(&mut present_future);
 
         command_buffer_future.flush().unwrap();
-        data.prev_result = present_future.present(image_index).unwrap();
+        data.recreate_swapchain = present_future.present(image_index).unwrap();
 
         data.last_frame = SystemTime::now();
 

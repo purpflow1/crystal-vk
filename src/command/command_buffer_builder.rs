@@ -177,6 +177,152 @@ impl CommandBufferBuilder {
         Ok(self)
     }
 
+    pub fn generate_mipmaps(
+        self: Box<Self>,
+        image: Arc<Image>,
+    ) -> Result<Box<Self>, Box<dyn Error>> {
+        let mut barrier = vk::ImageMemoryBarrier::default()
+            .image(image.handle)
+            .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .subresource_range(
+                vk::ImageSubresourceRange::default()
+                    .aspect_mask(vk::ImageAspectFlags::COLOR)
+                    .base_array_layer(0)
+                    .layer_count(1)
+                    .level_count(1),
+            );
+
+        let mut mip_width = image.info.extent[0];
+        let mut mip_heigth = image.info.extent[1];
+
+        for mip_level in 1..image.info.mip_levels {
+            barrier.subresource_range = barrier.subresource_range.base_mip_level(mip_level - 1);
+            barrier = barrier.old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL);
+            barrier = barrier.new_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL);
+            barrier = barrier.src_access_mask(vk::AccessFlags::TRANSFER_WRITE);
+            barrier = barrier.dst_access_mask(vk::AccessFlags::TRANSFER_READ);
+
+            unsafe {
+                self.command_buffer_allocator
+                    .device
+                    .handle
+                    .cmd_pipeline_barrier(
+                        self.handle,
+                        vk::PipelineStageFlags::TRANSFER,
+                        vk::PipelineStageFlags::TRANSFER,
+                        vk::DependencyFlags::empty(),
+                        &[],
+                        &[],
+                        &[barrier],
+                    );
+            }
+
+            let blit = vk::ImageBlit::default()
+                .src_offsets([
+                    vk::Offset3D::default().x(0).y(0).z(0),
+                    vk::Offset3D::default()
+                        .x(mip_width as i32)
+                        .y(mip_heigth as i32)
+                        .z(1),
+                ])
+                .dst_offsets([
+                    vk::Offset3D::default().x(0).y(0).z(0),
+                    vk::Offset3D::default()
+                        .x(if mip_width > 1 {
+                            mip_width as i32 / 2
+                        } else {
+                            1
+                        })
+                        .y(if mip_heigth > 1 {
+                            mip_heigth as i32 / 2
+                        } else {
+                            1
+                        })
+                        .z(1),
+                ])
+                .src_subresource(
+                    vk::ImageSubresourceLayers::default()
+                        .aspect_mask(vk::ImageAspectFlags::COLOR)
+                        .mip_level(mip_level - 1)
+                        .base_array_layer(0)
+                        .layer_count(1),
+                )
+                .dst_subresource(
+                    vk::ImageSubresourceLayers::default()
+                        .aspect_mask(vk::ImageAspectFlags::COLOR)
+                        .mip_level(mip_level)
+                        .base_array_layer(0)
+                        .layer_count(1),
+                );
+
+            unsafe {
+                self.command_buffer_allocator.device.handle.cmd_blit_image(
+                    self.handle,
+                    image.handle,
+                    vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+                    image.handle,
+                    vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                    &[blit],
+                    vk::Filter::LINEAR,
+                );
+            }
+
+            barrier = barrier.old_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL);
+            barrier = barrier.new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
+            barrier = barrier.src_access_mask(vk::AccessFlags::TRANSFER_READ);
+            barrier = barrier.dst_access_mask(vk::AccessFlags::SHADER_READ);
+
+            unsafe {
+                self.command_buffer_allocator
+                    .device
+                    .handle
+                    .cmd_pipeline_barrier(
+                        self.handle,
+                        vk::PipelineStageFlags::TRANSFER,
+                        vk::PipelineStageFlags::FRAGMENT_SHADER,
+                        vk::DependencyFlags::empty(),
+                        &[],
+                        &[],
+                        &[barrier],
+                    );
+            }
+
+            if mip_width > 1 {
+                mip_width /= 2
+            }
+
+            if mip_heigth > 1 {
+                mip_heigth /= 2
+            }
+        }
+
+        barrier.subresource_range = barrier
+            .subresource_range
+            .base_mip_level(image.info.mip_levels - 1);
+        barrier = barrier.old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL);
+        barrier = barrier.new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
+        barrier = barrier.src_access_mask(vk::AccessFlags::TRANSFER_WRITE);
+        barrier = barrier.dst_access_mask(vk::AccessFlags::SHADER_READ);
+
+        unsafe {
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_pipeline_barrier(
+                    self.handle,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::PipelineStageFlags::FRAGMENT_SHADER,
+                    vk::DependencyFlags::empty(),
+                    &[],
+                    &[],
+                    &[barrier],
+                );
+        }
+
+        Ok(self)
+    }
+
     pub fn stage_image<T>(
         self: Box<Self>,
         image: Arc<Image>,
