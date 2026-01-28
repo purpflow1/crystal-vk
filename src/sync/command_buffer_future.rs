@@ -4,7 +4,6 @@ use std::{
     pin::Pin,
     sync::{Arc, Mutex},
     task::{Context, Poll, Waker},
-    u64,
 };
 
 use ash::vk;
@@ -65,11 +64,11 @@ impl Future for CommandBufferFuture {
     type Output = Result<(), Box<dyn Error>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if !self.submitted {
-            if let Err(e) = self.flush() {
-                self.completed = true;
-                return Poll::Ready(Err(e));
-            }
+        if !self.submitted
+            && let Err(e) = self.flush()
+        {
+            self.completed = true;
+            return Poll::Ready(Err(e));
         }
 
         match self.check_completion() {

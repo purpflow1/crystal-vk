@@ -29,7 +29,7 @@ pub struct CommandBufferBuilder {
 }
 
 impl CommandBufferBuilder {
-    pub fn build(self: Box<Self>) -> Result<Box<CommandBuffer>, Box<dyn Error>> {
+    pub fn build(self) -> Result<Box<CommandBuffer>, Box<dyn Error>> {
         match unsafe {
             self.command_buffer_allocator
                 .device

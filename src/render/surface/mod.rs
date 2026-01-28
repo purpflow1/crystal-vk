@@ -10,6 +10,9 @@ pub(crate) struct Surface {
     _instance: Arc<crate::instance::Instance>,
 }
 
+unsafe impl Send for Surface {}
+unsafe impl Sync for Surface {}
+
 impl Drop for Surface {
     fn drop(&mut self) {
         unsafe { self.surface.destroy_surface(self.surface_khr, None) }
@@ -21,9 +24,9 @@ impl Surface {
         let ws_handlers = if let Some(h) = instance.ws_handlers {
             h
         } else {
-            return Err(Box::new(DeviceError::new(format!(
-                "cannot create surface: no window system handlers"
-            ))));
+            return Err(Box::new(DeviceError::new(
+                "cannot create surface: no window system handlers".to_string(),
+            )));
         };
 
         let surface = ash::khr::surface::Instance::new(&instance.entry, &instance.handle);

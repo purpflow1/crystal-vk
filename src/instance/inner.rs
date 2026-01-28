@@ -56,7 +56,7 @@ pub(super) fn new_in(
     let create_info = {
         use crate::instance::layers;
 
-        layers = layers::get_supported_validation_layers(&entry);
+        layers = layers::get_supported_validation_layers(entry);
 
         if layers.is_empty() {
             println!(

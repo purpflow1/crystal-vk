@@ -16,6 +16,9 @@ pub(crate) struct RenderPass {
     pub device: Arc<Device>,
 }
 
+unsafe impl Send for RenderPass {}
+unsafe impl Sync for RenderPass {}
+
 impl Drop for RenderPass {
     fn drop(&mut self) {
         unsafe { self.device.handle.destroy_render_pass(self.handle, None) }

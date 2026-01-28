@@ -53,12 +53,11 @@ impl Future for PresentFuture {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let image_index = self.image_index;
 
-        if !self.submitted {
-            if let Err(e) = self.present(image_index) {
+        if !self.submitted
+            && let Err(e) = self.present(image_index) {
                 self.completed = true;
                 return Poll::Ready(Err(e));
             }
-        }
 
         match self.check_completion() {
             Ok(true) => Poll::Ready(Ok((self.image_index, self.suboptimal))),

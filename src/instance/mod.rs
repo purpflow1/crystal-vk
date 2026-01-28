@@ -1,5 +1,5 @@
 mod debug_callback;
-mod instance;
+mod inner;
 mod layers;
 
 use std::{error::Error, sync::Arc};
@@ -14,6 +14,9 @@ pub(crate) struct Instance {
     pub ws_handlers: Option<WindowSystemRawHandlers>,
     _debug_utils_messanger: Option<debug_callback::DebugUtilsMessanger>,
 }
+
+unsafe impl Send for Instance {}
+unsafe impl Sync for Instance {}
 
 impl std::fmt::Debug for Instance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -48,7 +51,7 @@ impl Instance {
             Err(e) => return Err(Box::new(DeviceError::new(format!("{e}")))),
         };
 
-        let instance = instance::new_in(&entry, ws_handlers)?;
+        let instance = inner::new_in(&entry, ws_handlers)?;
 
         let _debug_utils_messanger = {
             #[cfg(debug_assertions)]

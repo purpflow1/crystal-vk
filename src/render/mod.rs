@@ -26,6 +26,9 @@ pub struct RenderTarget {
     pub device: Arc<Device>,
 }
 
+unsafe impl Send for RenderTarget {}
+unsafe impl Sync for RenderTarget {}
+
 impl RenderTarget {
     pub fn new(
         device: Arc<Device>,
@@ -61,10 +64,7 @@ impl RenderTarget {
             return error!(DeviceError, "device is not supported for sample count: {s}");
         };
 
-        let present = match image_sequence[0].info.typ {
-            ImageType::Swapchain => true,
-            _ => false,
-        };
+        let present = image_sequence[0].info.typ == ImageType::Swapchain;
 
         let render_pass = RenderPass::new(
             device.clone(),

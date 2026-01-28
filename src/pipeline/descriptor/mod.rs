@@ -15,6 +15,9 @@ pub struct DescriptorPool {
     pub device: Arc<Device>,
 }
 
+unsafe impl Send for DescriptorPool {}
+unsafe impl Sync for DescriptorPool {}
+
 impl Drop for DescriptorPool {
     fn drop(&mut self) {
         unsafe {

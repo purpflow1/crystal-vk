@@ -4,7 +4,6 @@ use std::{
     pin::Pin,
     sync::Arc,
     task::{Context, Poll, Waker},
-    u64,
 };
 
 use ash::vk;
@@ -55,11 +54,11 @@ impl Future for SwapchainFuture {
     type Output = Result<(u32, bool), Box<dyn Error>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if !self.submitted {
-            if let Err(e) = self.acquire_next_image() {
-                self.completed = true;
-                return Poll::Ready(Err(e));
-            }
+        if !self.submitted
+            && let Err(e) = self.acquire_next_image()
+        {
+            self.completed = true;
+            return Poll::Ready(Err(e));
         }
 
         match self.check_completion() {

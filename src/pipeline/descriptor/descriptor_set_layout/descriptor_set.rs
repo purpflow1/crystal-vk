@@ -25,6 +25,9 @@ pub struct DescriptorSet {
     bindings: BTreeMap<u32, Arc<dyn Binding>>,
 }
 
+unsafe impl Send for DescriptorSet {}
+unsafe impl Sync for DescriptorSet {}
+
 impl DescriptorSet {
     pub fn bind_combined_image_sampler(
         &mut self,
@@ -132,7 +135,7 @@ impl DescriptorSet {
 
         Ok(Arc::new(Mutex::new(Self {
             handle: descriptor_set,
-            descriptor_set_layout: descriptor_set_layout,
+            descriptor_set_layout,
             descriptor_pool,
             bindings: BTreeMap::new(),
         })))

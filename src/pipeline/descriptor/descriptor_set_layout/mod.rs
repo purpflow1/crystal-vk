@@ -21,6 +21,9 @@ pub struct DescriptorSetLayout {
     pub device: Arc<Device>,
 }
 
+unsafe impl Send for DescriptorSetLayout {}
+unsafe impl Sync for DescriptorSetLayout {}
+
 impl Drop for DescriptorSetLayout {
     fn drop(&mut self) {
         unsafe {
@@ -42,7 +45,7 @@ impl DescriptorSetLayout {
                 vk::DescriptorSetLayoutBinding::default()
                     .descriptor_type(layout_info.typ)
                     .stage_flags(layout_info.stages)
-                    .descriptor_count(layout_info.count as u32)
+                    .descriptor_count(layout_info.count)
                     .binding(*binding)
             })
             .collect::<Vec<_>>();

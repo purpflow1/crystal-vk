@@ -13,6 +13,9 @@ pub(crate) struct FramebufferPool {
     pub render_pass: Arc<RenderPass>,
 }
 
+unsafe impl Send for FramebufferPool {}
+unsafe impl Sync for FramebufferPool {}
+
 impl Drop for FramebufferPool {
     fn drop(&mut self) {
         self.handles.iter().for_each(|handle| unsafe {

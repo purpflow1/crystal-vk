@@ -11,6 +11,7 @@ use crate::{
     pipeline::descriptor::descriptor_set_layout::binding::Binding,
 };
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum ImageType {
     Swapchain,
     Sampled,
@@ -48,6 +49,9 @@ pub struct Image {
 
     pub device: Arc<Device>,
 }
+
+unsafe impl Send for Image {}
+unsafe impl Sync for Image {}
 
 impl Binding for Image {}
 

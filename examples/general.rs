@@ -569,8 +569,7 @@ impl ApplicationHandler for ContextWindow {
             .queues
             .iter()
             .find(|(family, _)| family.flags.contains(vk::QueueFlags::GRAPHICS))
-            .unwrap()
-            .clone();
+            .unwrap();
 
         if data.recreate_swapchain {
             data.swapchain = Swapchain::from_old(data.swapchain.clone(), data.extent).unwrap();

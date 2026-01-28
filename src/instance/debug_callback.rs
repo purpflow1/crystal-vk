@@ -43,11 +43,11 @@ unsafe extern "system" fn debug_callback(
                     println!("[FATAL] {message}");
                 };
             } else if message_severity.contains(DebugUtilsMessageSeverityFlagsEXT::INFO) {
-                println!("[VALIDATION INFO] {}", message);
+                println!("[VALIDATION INFO] {message}");
             } else if message_severity.contains(DebugUtilsMessageSeverityFlagsEXT::VERBOSE) {
-                println!("[VALIDATION VERBOSE] {}", message);
+                println!("[VALIDATION VERBOSE] {message}");
             } else if message_severity.contains(DebugUtilsMessageSeverityFlagsEXT::WARNING) {
-                println!("[VALIDATION WARNING] {}", message);
+                println!("[VALIDATION WARNING] {message}");
             }
         }
         None => println!("debug callback was called, but invalid callback data was provided"),

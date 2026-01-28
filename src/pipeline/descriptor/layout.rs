@@ -19,6 +19,9 @@ pub struct PipelineLayout {
     pub descriptor_pool: Arc<Mutex<DescriptorPool>>,
 }
 
+unsafe impl Send for PipelineLayout {}
+unsafe impl Sync for PipelineLayout {}
+
 impl Drop for PipelineLayout {
     fn drop(&mut self) {
         unsafe {

@@ -130,11 +130,7 @@ impl PhysicalDevice {
                         instance
                             .handle
                             .get_physical_device_queue_family_properties(*physical_device),
-                        if let Some(surface) = surface.clone() {
-                            Some(Self::query_swap_chain_support(*physical_device, surface).unwrap())
-                        } else {
-                            None
-                        },
+                        surface.clone().map(|surface| Self::query_swap_chain_support(*physical_device, surface).unwrap()),
                     )
                 };
 

@@ -11,6 +11,9 @@ pub struct Shader {
     pub device: Arc<Device>,
 }
 
+unsafe impl Send for Shader {}
+unsafe impl Sync for Shader {}
+
 impl Drop for Shader {
     fn drop(&mut self) {
         unsafe { self.device.handle.destroy_shader_module(self.handle, None) }

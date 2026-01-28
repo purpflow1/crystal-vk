@@ -23,6 +23,8 @@ pub(crate) struct SwapchainInfo {
     pub surface_format: vk::SurfaceFormatKHR,
 }
 
+unsafe impl Send for SwapchainInfo {}
+
 impl SwapchainInfo {
     fn new(
         device: Arc<Device>,
@@ -119,6 +121,9 @@ pub struct Swapchain {
 
     pub present_queue: Arc<Mutex<Queue>>,
 }
+
+unsafe impl Send for Swapchain {}
+unsafe impl Sync for Swapchain {}
 
 impl Drop for Swapchain {
     fn drop(&mut self) {

@@ -13,14 +13,14 @@ pub trait GpuFuture: Future {
     fn set_wait_semaphores(&mut self, semaphores: VecDeque<vk::Semaphore>);
     fn get_signal_semaphores(&self) -> VecDeque<vk::Semaphore>;
 
-    fn sync_with_present(self: &Self, after: &mut Box<PresentFuture>)
+    fn sync_with_present(&self, after: &mut Box<PresentFuture>)
     where
         Self: Sized,
     {
         after.set_wait_semaphores(self.get_signal_semaphores());
     }
 
-    fn sync_with(self: &Self, after: &mut Self)
+    fn sync_with(&self, after: &mut Self)
     where
         Self: Sized,
     {

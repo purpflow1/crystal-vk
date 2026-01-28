@@ -20,7 +20,6 @@ pub struct Sampler {
 }
 
 impl Binding for Sampler {}
-
 impl Binding for (Arc<Image>, Arc<Sampler>) {}
 
 impl Drop for Sampler {
