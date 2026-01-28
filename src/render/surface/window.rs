@@ -20,7 +20,9 @@ impl WindowSystemRawHandlers {
                 display: display.as_raw(),
             })
         } else {
-            Err(Box::new(DeviceError::new("cannot get window system handlers".to_string())))
+            Err(Box::new(DeviceError::new(
+                "cannot get window system handlers".to_string(),
+            )))
         }
     }
 }
