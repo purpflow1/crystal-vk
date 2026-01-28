@@ -367,12 +367,26 @@ impl CommandBufferBuilder {
         Ok(self)
     }
 
-    pub fn draw_indexed(self: Box<Self>, index_count: u32) -> Box<Self> {
+    pub fn draw_indexed(
+        self: Box<Self>,
+        index_count: u32,
+        instance_count: u32,
+        first_index: u32,
+        vertex_offset: i32,
+        first_instance: u32,
+    ) -> Box<Self> {
         unsafe {
             self.command_buffer_allocator
                 .device
                 .handle
-                .cmd_draw_indexed(self.handle, index_count, 1, 0, 0, 0);
+                .cmd_draw_indexed(
+                    self.handle,
+                    index_count,
+                    instance_count,
+                    first_index,
+                    vertex_offset,
+                    first_instance,
+                );
         }
         self
     }

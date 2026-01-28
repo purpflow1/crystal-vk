@@ -2,7 +2,10 @@ use std::{error::Error, sync::Arc};
 
 use ash::vk;
 
-use crate::{device::Device, error, errors::ImageError};
+use crate::{
+    device::Device, error, errors::ImageError, image::Image,
+    pipeline::descriptor::descriptor_set_layout::binding::Binding,
+};
 
 pub struct SamplerInfo {
     pub filter: vk::Filter,
@@ -15,6 +18,10 @@ pub struct Sampler {
     pub(crate) handle: vk::Sampler,
     pub device: Arc<Device>,
 }
+
+impl Binding for Sampler {}
+
+impl Binding for (Arc<Image>, Arc<Sampler>) {}
 
 impl Drop for Sampler {
     fn drop(&mut self) {

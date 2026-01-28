@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     error::Error,
     sync::{Arc, Mutex, RwLock},
 };
@@ -10,13 +11,18 @@ use crate::{
     error,
     errors::DescriptorError,
     image::{Image, sampler::Sampler},
-    pipeline::descriptor::{DescriptorPool, descriptor_set_layout::DescriptorSetLayout},
+    pipeline::descriptor::{
+        DescriptorPool,
+        descriptor_set_layout::{DescriptorSetLayout, binding::Binding},
+    },
 };
 
 pub struct DescriptorSet {
     pub(crate) handle: vk::DescriptorSet,
     pub(crate) descriptor_set_layout: Arc<DescriptorSetLayout>,
     descriptor_pool: Arc<Mutex<DescriptorPool>>,
+
+    bindings: BTreeMap<u32, Arc<dyn Binding>>,
 }
 
 impl DescriptorSet {
@@ -54,10 +60,13 @@ impl DescriptorSet {
                 .handle
                 .update_descriptor_sets(&[descriptor_write], &[])
         };
+
+        self.bindings.insert(binding, Arc::new((image, sampler)));
+
         Ok(())
     }
 
-    pub fn bind_buffer<T>(
+    pub fn bind_buffer<T: 'static>(
         &mut self,
         buffer: Arc<RwLock<Buffer<T>>>,
         binding: u32,
@@ -92,8 +101,10 @@ impl DescriptorSet {
                 .handle
                 .update_descriptor_sets(&[descriptor_write], &[])
         };
-
         drop(buffer_lock);
+
+        self.bindings.insert(binding, buffer);
+
         Ok(())
     }
 
@@ -123,6 +134,7 @@ impl DescriptorSet {
             handle: descriptor_set,
             descriptor_set_layout: descriptor_set_layout,
             descriptor_pool,
+            bindings: BTreeMap::new(),
         })))
     }
 }

@@ -73,7 +73,8 @@ struct ContextWindow {
 struct Data {
     device: Arc<Device>,
     queues: QueuePool,
-    render_target: Arc<RenderTarget>,
+    post_process_render_target: Arc<RenderTarget>,
+    swapchain_render_target: Arc<RenderTarget>,
     swapchain: Arc<Swapchain>,
 
     command_allocator: Arc<CommandBufferAllocator>,
@@ -81,11 +82,13 @@ struct Data {
     buffer_vert: Arc<RwLock<Buffer<VertexTexture>>>,
     buffer_ind: Arc<RwLock<Buffer<Index>>>,
     buffer_model: Arc<RwLock<Buffer<glam::Mat4>>>,
-    sampler: Arc<Sampler>,
-    image: Arc<crystal_vk::image::Image>,
+    buffer_resolution_uniform: Arc<RwLock<Buffer<glam::Vec2>>>,
+    post_process_sampler: Arc<Sampler>,
 
+    post_process_pipeline: Arc<Pipeline<VertexTexture>>,
     pipeline: Arc<Pipeline<VertexTexture>>,
     per_object_descriptor_set: Arc<Mutex<DescriptorSet>>,
+    post_process_descriptor_set: Arc<Mutex<DescriptorSet>>,
 
     startup_time: SystemTime,
     last_frame: SystemTime,
@@ -122,8 +125,6 @@ impl ApplicationHandler for ContextWindow {
         let swapchain = Swapchain::new(present_queue, [600, 600], true).unwrap();
         let swapchain_images = swapchain.image_sequence.clone();
 
-        let render_target = RenderTarget::new(device.clone(), swapchain_images, 4).unwrap();
-
         let descriptor_pool = DescriptorPool::new(device.clone()).unwrap();
 
         let mut layout_alloc_infos = BTreeMap::new();
@@ -153,8 +154,11 @@ impl ApplicationHandler for ContextWindow {
         )
         .unwrap();
 
-        let per_object_pipeline_layout =
-            PipelineLayout::new(descriptor_pool, vec![per_object_descriptor_set_layout]).unwrap();
+        let per_object_pipeline_layout = PipelineLayout::new(
+            descriptor_pool.clone(),
+            vec![per_object_descriptor_set_layout],
+        )
+        .unwrap();
 
         let compiler = shaderc::Compiler::new().unwrap();
 
@@ -198,13 +202,34 @@ impl ApplicationHandler for ContextWindow {
         )
         .unwrap();
 
+        let post_process_stage_image = crystal_vk::image::Image::new(
+            device.clone(),
+            [window.inner_size().width, window.inner_size().height],
+            vk::Format::R8G8B8A8_SRGB,
+        )
+        .unwrap();
+
+        let post_process_render_target =
+            RenderTarget::new(device.clone(), vec![post_process_stage_image.clone()], 4).unwrap();
+        let swapchain_render_target =
+            RenderTarget::new(device.clone(), swapchain_images, 4).unwrap();
+
         let world_object_pipeline = crystal_vk::pipeline::Pipeline::<VertexTexture>::new_graphics(
             per_object_pipeline_layout,
-            render_target.clone(),
+            post_process_render_target.clone(),
             vec![shader_textured_vert, shader_textured_frag],
             PipelineInfo::default(),
         )
         .unwrap();
+
+        let post_process_vert = glsl2spirv!(
+            "examples/shaders/post-process.vert",
+            shaderc::ShaderKind::Vertex
+        );
+        let post_process_frag = glsl2spirv!(
+            "examples/shaders/post-process.frag",
+            shaderc::ShaderKind::Fragment
+        );
 
         let buffer_vertex = Buffer::<VertexTexture>::new(
             device.clone(),
@@ -315,7 +340,7 @@ impl ApplicationHandler for ContextWindow {
                 crystal_vk::image::Image::new(
                     device.clone(),
                     [info.width, info.height],
-                    vk::Format::R8G8B8A8_SRGB,
+                    vk::Format::R8G8B8A8_UNORM,
                 )
                 .unwrap(),
                 buffer,
@@ -333,7 +358,6 @@ impl ApplicationHandler for ContextWindow {
             })
             .unwrap();
 
-        // TODO fix living time
         let command_buffer_builder = CommandBufferBuilder::new(
             command_allocator.clone(),
             transfer_queue_family_info.index,
@@ -353,16 +377,124 @@ impl ApplicationHandler for ContextWindow {
         command_buffer.flush().unwrap();
         command_buffer.wait().unwrap();
 
+        let mut layout_alloc_info = BTreeMap::new();
+
+        layout_alloc_info.insert(
+            0,
+            LayoutAllocInfo {
+                stages: vk::ShaderStageFlags::FRAGMENT,
+                typ: vk::DescriptorType::UNIFORM_BUFFER,
+                count: 1,
+            },
+        );
+
+        layout_alloc_info.insert(
+            1,
+            LayoutAllocInfo {
+                stages: vk::ShaderStageFlags::FRAGMENT,
+                typ: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+                count: 1,
+            },
+        );
+
+        let post_process_descriptor_set_layout =
+            DescriptorSetLayout::new(device.clone(), layout_alloc_info).unwrap();
+
+        let post_process_descriptor_set = DescriptorSet::new(
+            descriptor_pool.clone(),
+            post_process_descriptor_set_layout.clone(),
+        )
+        .unwrap();
+
+        let buffer_resolution_uniform = Buffer::new(
+            device.clone(),
+            BufferCreateInfo {
+                len: 1,
+                sharing_mode: vk::SharingMode::EXCLUSIVE,
+                usage: vk::BufferUsageFlags::UNIFORM_BUFFER,
+                properties: vk::MemoryPropertyFlags::HOST_VISIBLE,
+            },
+        )
+        .unwrap();
+
+        let mut lock = buffer_resolution_uniform.write().unwrap();
+
+        lock[0] = glam::Vec2::new(
+            window.inner_size().width as f32,
+            window.inner_size().height as f32,
+        );
+
+        drop(lock);
+
+        let post_process_sampler = Sampler::new(
+            device.clone(),
+            SamplerInfo {
+                filter: vk::Filter::NEAREST,
+                address_mode: vk::SamplerAddressMode::REPEAT,
+                anisotropy_texels: 1.,
+                max_lod: 0.,
+            },
+        )
+        .unwrap();
+
+        let mut lock = post_process_descriptor_set.lock().unwrap();
+
+        lock.bind_buffer(buffer_resolution_uniform.clone(), 0, 0, 1)
+            .unwrap();
+        lock.bind_combined_image_sampler(
+            post_process_stage_image,
+            post_process_sampler.clone(),
+            1,
+            0,
+            0,
+        )
+        .unwrap();
+
+        drop(lock);
+
+        let post_process_pipeline_layout = PipelineLayout::new(
+            descriptor_pool.clone(),
+            vec![post_process_descriptor_set_layout],
+        )
+        .unwrap();
+
+        let post_process_vert = Shader::new(
+            device.clone(),
+            CString::new("main").unwrap(),
+            vk::ShaderStageFlags::VERTEX,
+            post_process_vert.as_binary().to_vec(),
+        )
+        .unwrap();
+
+        let post_process_frag = Shader::new(
+            device.clone(),
+            CString::new("main").unwrap(),
+            vk::ShaderStageFlags::FRAGMENT,
+            post_process_frag.as_binary().to_vec(),
+        )
+        .unwrap();
+
+        let post_process_pipeline = crystal_vk::pipeline::Pipeline::<VertexTexture>::new_graphics(
+            post_process_pipeline_layout,
+            swapchain_render_target.clone(),
+            vec![post_process_vert, post_process_frag],
+            PipelineInfo::default(),
+        )
+        .unwrap();
+
         let mut lock = per_object_descriptor_set.lock().unwrap();
         lock.bind_buffer(buffer_model.clone(), 0, 0, 1).unwrap();
-        lock.bind_combined_image_sampler(image.clone(), sampler.clone(), 1, 0, 1)
+        lock.bind_combined_image_sampler(image.clone(), post_process_sampler.clone(), 1, 0, 1)
             .unwrap();
+
+        drop(lock);
 
         self.window = Some(window);
         self.data = Some(Data {
             device,
             queues,
-            render_target,
+            post_process_render_target,
+            swapchain_render_target,
             swapchain,
 
             command_allocator,
@@ -370,11 +502,13 @@ impl ApplicationHandler for ContextWindow {
             buffer_ind: buffer_index,
             buffer_model,
             buffer_vert: buffer_vertex,
-            sampler,
-            image,
+            buffer_resolution_uniform,
+            post_process_sampler,
 
+            post_process_pipeline,
             pipeline: world_object_pipeline,
             per_object_descriptor_set: per_object_descriptor_set.clone(),
+            post_process_descriptor_set,
 
             startup_time: SystemTime::now(),
             last_frame: SystemTime::UNIX_EPOCH,
@@ -386,7 +520,7 @@ impl ApplicationHandler for ContextWindow {
         });
     }
 
-    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {}
+    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {}
 
     fn window_event(
         &mut self,
@@ -426,6 +560,11 @@ impl ApplicationHandler for ContextWindow {
 
         buffer[0] = render_camera * model;
 
+        let mut buffer = data.buffer_resolution_uniform.write().unwrap();
+        buffer[0] = glam::Vec2::new(data.extent[0] as f32, data.extent[1] as f32);
+
+        drop(buffer);
+
         let (family_info, queues) = data
             .queues
             .iter()
@@ -435,7 +574,31 @@ impl ApplicationHandler for ContextWindow {
 
         if data.recreate_swapchain {
             data.swapchain = Swapchain::from_old(data.swapchain.clone(), data.extent).unwrap();
-            data.render_target = RenderTarget::new(
+
+            let post_process_image = crystal_vk::image::Image::new(
+                data.device.clone(),
+                data.extent,
+                vk::Format::R8G8B8A8_SRGB,
+            )
+            .unwrap();
+
+            let mut lock = data.post_process_descriptor_set.lock().unwrap();
+            lock.bind_combined_image_sampler(
+                post_process_image.clone(),
+                data.post_process_sampler.clone(),
+                1,
+                0,
+                1,
+            )
+            .unwrap();
+
+            drop(lock);
+
+            data.post_process_render_target =
+                RenderTarget::new(data.device.clone(), vec![post_process_image.clone()], 4)
+                    .unwrap();
+
+            data.swapchain_render_target = RenderTarget::new(
                 data.device.clone(),
                 data.swapchain.image_sequence.clone(),
                 4,
@@ -450,7 +613,7 @@ impl ApplicationHandler for ContextWindow {
             SwapchainFuture::new(data.device.clone(), data.swapchain.clone()).unwrap();
 
         // blocks until aviability
-        let (image_index, suboptimal) = match swapchain_future.acquire_next_image() {
+        let (image_index, _suboptimal) = match swapchain_future.acquire_next_image() {
             Ok(result) => result,
             Err(_e) => {
                 dbg!(_e);
@@ -466,7 +629,7 @@ impl ApplicationHandler for ContextWindow {
             vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
         )
         .unwrap()
-        .begin_render_pass(data.render_target.clone(), image_index)
+        .begin_render_pass(data.post_process_render_target.clone(), 0)
         .unwrap()
         .bind_viewport_and_scissor(
             vec![vk::Viewport {
@@ -490,7 +653,22 @@ impl ApplicationHandler for ContextWindow {
             0,
             vec![data.per_object_descriptor_set.clone()],
         )
-        .draw_indexed(42)
+        .draw_indexed(36, 1, 0, 0, 0)
+        .end_render_pass()
+        .begin_render_pass(data.swapchain_render_target.clone(), image_index)
+        .unwrap()
+        .bind_pipeline(
+            data.post_process_pipeline.clone(),
+            vk::PipelineBindPoint::GRAPHICS,
+        )
+        .bind_vertex_buffer(data.buffer_vert.clone())
+        .bind_index_buffer(data.buffer_ind.clone())
+        .bind_descriptor_sets(
+            data.post_process_pipeline.clone(),
+            0,
+            vec![data.post_process_descriptor_set.clone()],
+        )
+        .draw_indexed(6, 1, 36, 8, 0)
         .end_render_pass();
 
         let command_buffer = builder.build().unwrap();

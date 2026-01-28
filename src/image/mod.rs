@@ -14,6 +14,7 @@ use crate::{
     device::Device,
     error,
     errors::{DeviceError, ImageError},
+    pipeline::descriptor::descriptor_set_layout::binding::Binding,
 };
 
 pub enum ImageType {
@@ -49,10 +50,12 @@ pub struct Image {
     pub(crate) image_view: vk::ImageView,
     pub(crate) handle: vk::Image,
     pub(crate) memory: vk::DeviceMemory,
-    pub(crate) info: ImageInfo,
+    pub info: ImageInfo,
 
     pub device: Arc<Device>,
 }
+
+impl Binding for Image {}
 
 impl Drop for Image {
     fn drop(&mut self) {
