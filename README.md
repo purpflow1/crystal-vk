@@ -16,3 +16,7 @@ To run debug scene from included example in
 ```bash
 cargo run --example general
 ```
+---
+# Gallery
+Example "general" (textured cube, with vingette postprocessed)
+[![Example "general"](https://iili.io/fisptYQ.md.png)](https://freeimage.host/i/fisptYQ)
