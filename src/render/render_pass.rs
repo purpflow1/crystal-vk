@@ -1,7 +1,4 @@
-use std::{
-    error::Error,
-    sync::{Arc, RwLock},
-};
+use std::{error::Error, sync::Arc};
 
 use ash::vk;
 

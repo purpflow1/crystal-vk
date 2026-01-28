@@ -93,7 +93,7 @@ struct Data {
     startup_time: SystemTime,
     last_frame: SystemTime,
 
-    prev_future: Option<Box<CommandBufferFuture>>,
+    _prev_future: Option<Box<CommandBufferFuture>>,
     recreate_swapchain: bool,
 
     extent: [u32; 2],
@@ -513,7 +513,7 @@ impl ApplicationHandler for ContextWindow {
             startup_time: SystemTime::now(),
             last_frame: SystemTime::UNIX_EPOCH,
 
-            prev_future: None,
+            _prev_future: None,
             recreate_swapchain: false,
 
             extent: [1200, 800],

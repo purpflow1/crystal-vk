@@ -10,12 +10,10 @@ use std::{
 use ash::vk;
 
 use crate::{
-    command::command_buffer::CommandBuffer,
     device::{Device, queue::Queue},
     error,
-    errors::{CommandError, SyncError},
-    render::swapchain::Swapchain,
-    sync::{GpuFuture, SwapchainFuture},
+    errors::SyncError,
+    sync::GpuFuture,
 };
 
 pub struct CommandBufferFuture {

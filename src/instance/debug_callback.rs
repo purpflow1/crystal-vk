@@ -1,6 +1,5 @@
 use std::error::Error;
 use std::ffi::c_void;
-use std::process::abort;
 
 use ash::vk::{
     self, DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT,

@@ -1,8 +1,4 @@
-use std::{
-    error::Error,
-    ops::Range,
-    sync::{Arc, Mutex},
-};
+use std::{error::Error, ops::Range, sync::Arc};
 
 use ash::vk;
 

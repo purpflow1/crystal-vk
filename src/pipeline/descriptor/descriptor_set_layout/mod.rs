@@ -1,15 +1,11 @@
 pub mod binding;
 pub mod descriptor_set;
 
-use std::{
-    collections::BTreeMap,
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use std::{collections::BTreeMap, error::Error, sync::Arc};
 
 use ash::vk;
 
-use crate::{device::Device, error, errors::DescriptorError, pipeline::descriptor::DescriptorPool};
+use crate::{device::Device, error, errors::DescriptorError};
 
 #[derive(Clone)]
 pub struct LayoutAllocInfo {

@@ -1,6 +1,5 @@
 use std::{
     error::Error,
-    marker::PhantomData,
     sync::{Arc, Mutex, RwLock},
 };
 
@@ -9,17 +8,11 @@ use ash::vk;
 use crate::{
     buffer::Buffer,
     command::{CommandBufferAllocator, command_buffer::CommandBuffer},
-    device::Device,
     error,
     errors::CommandError,
     image::Image,
-    pipeline::{
-        Pipeline,
-        descriptor::{
-            descriptor_set_layout::descriptor_set::DescriptorSet, layout::PipelineLayout,
-        },
-    },
-    render::{RenderTarget, framebuffer::FramebufferPool},
+    pipeline::{Pipeline, descriptor::descriptor_set_layout::descriptor_set::DescriptorSet},
+    render::RenderTarget,
 };
 
 #[derive(Default)]

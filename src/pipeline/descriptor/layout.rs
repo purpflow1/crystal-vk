@@ -1,15 +1,11 @@
 use std::{
-    cell::RefCell,
-    collections::BTreeMap,
     error::Error,
-    iter::zip,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
 };
 
 use ash::vk;
 
 use crate::{
-    buffer::Buffer,
     device::Device,
     error,
     errors::DescriptorError,
@@ -18,14 +14,13 @@ use crate::{
 
 pub struct PipelineLayout {
     pub(crate) handle: vk::PipelineLayout,
-    pub(crate) descriptor_set_layouts: Vec<Arc<DescriptorSetLayout>>,
+    pub(crate) _descriptor_set_layouts: Vec<Arc<DescriptorSetLayout>>,
     pub device: Arc<Device>,
     pub descriptor_pool: Arc<Mutex<DescriptorPool>>,
 }
 
 impl Drop for PipelineLayout {
     fn drop(&mut self) {
-        let lock = self.descriptor_pool.lock().unwrap();
         unsafe {
             self.device
                 .handle
@@ -63,7 +58,7 @@ impl PipelineLayout {
 
         Ok(Arc::new(Self {
             handle: pipeline_layout,
-            descriptor_set_layouts,
+            _descriptor_set_layouts: descriptor_set_layouts,
             device,
             descriptor_pool,
         }))

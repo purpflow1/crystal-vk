@@ -2,18 +2,16 @@ use std::{
     collections::VecDeque,
     error::Error,
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::Arc,
     task::{Context, Poll, Waker},
-    u64,
 };
 
 use ash::vk;
 
 use crate::{
-    command::command_buffer::CommandBuffer,
-    device::{Device, queue::Queue},
+    device::Device,
     error,
-    errors::{CommandError, QueueError, SyncError},
+    errors::{QueueError, SyncError},
     render::swapchain::Swapchain,
     sync::GpuFuture,
 };

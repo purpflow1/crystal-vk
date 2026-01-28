@@ -10,7 +10,6 @@ use std::{
 use ash::vk;
 
 use crate::{
-    command::command_buffer_builder::CommandBufferBuilder,
     device::{Device, queue::QueuePool},
     error,
     errors::CommandError,

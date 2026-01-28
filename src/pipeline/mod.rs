@@ -39,10 +39,10 @@ impl Default for PipelineInfo {
 
 pub struct Pipeline<V> {
     pub(crate) handle: vk::Pipeline,
-    pub(crate) info: PipelineInfo,
-    shaders: Vec<Arc<Shader>>,
     pub pipeline_layout: Arc<PipelineLayout>,
-    render_target: Option<Arc<RenderTarget>>,
+    pub(crate) _info: PipelineInfo,
+    _shaders: Vec<Arc<Shader>>,
+    _render_target: Option<Arc<RenderTarget>>,
     _tp: PhantomData<V>,
 }
 
@@ -206,10 +206,10 @@ impl<V: AttributeDescriptor> Pipeline<V> {
         } {
             Ok(pipelines) => Ok(Arc::new(Self {
                 handle: pipelines[0],
-                info: pipeline_info,
-                shaders,
+                _info: pipeline_info,
+                _shaders: shaders,
                 pipeline_layout,
-                render_target: Some(render_target),
+                _render_target: Some(render_target),
                 _tp: PhantomData,
             })),
             Err(es) => {

@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeMap,
     error::Error,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
 };
 
 use ash::vk;

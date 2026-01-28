@@ -2,15 +2,11 @@ mod debug_callback;
 mod instance;
 mod layers;
 
-use std::{error::Error, ffi::CStr, sync::Arc};
+use std::{error::Error, sync::Arc};
 
 use ash::vk;
 
-use crate::{
-    device::{physical_device::PhysicalDevice, queue::QueueFamilyInfo},
-    errors::DeviceError,
-    render::surface::{Surface, window::WindowSystemRawHandlers},
-};
+use crate::{errors::DeviceError, render::surface::window::WindowSystemRawHandlers};
 
 pub(crate) struct Instance {
     pub handle: ash::Instance,
@@ -62,7 +58,7 @@ impl Instance {
                     Some(debug_utils_messanger)
                 }
                 Err(e) => {
-                    dbg!("debug_utils_messanger creation error: {e}");
+                    dbg!(e);
                     None
                 }
             }

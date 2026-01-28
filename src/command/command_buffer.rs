@@ -1,6 +1,5 @@
 use std::{
     error::Error,
-    pin::Pin,
     sync::{Arc, Mutex},
 };
 

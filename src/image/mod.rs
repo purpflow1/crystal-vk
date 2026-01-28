@@ -1,16 +1,10 @@
 pub mod sampler;
 
-use std::{
-    cell::Cell,
-    error::Error,
-    sync::{Arc, Mutex, RwLock},
-};
+use std::{cell::Cell, error::Error, sync::Arc};
 
 use ash::vk;
 
 use crate::{
-    buffer::Buffer,
-    command::{CommandBufferAllocator, command_buffer_builder::CommandBufferBuilder},
     device::Device,
     error,
     errors::{DeviceError, ImageError},

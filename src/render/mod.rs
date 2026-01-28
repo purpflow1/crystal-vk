@@ -5,15 +5,15 @@ pub mod swapchain;
 
 use std::{
     error::Error,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 
 use ash::vk;
 
 use crate::{
-    device::{Device, queue::Queue},
+    device::Device,
     error,
-    errors::{DeviceError, SyncError},
+    errors::DeviceError,
     image::{Image, ImageType},
     render::{
         framebuffer::FramebufferPool,

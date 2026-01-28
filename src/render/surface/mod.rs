@@ -7,7 +7,7 @@ use crate::errors::DeviceError;
 pub(crate) struct Surface {
     pub surface: ash::khr::surface::Instance,
     pub surface_khr: ash::vk::SurfaceKHR,
-    instance: Arc<crate::instance::Instance>,
+    _instance: Arc<crate::instance::Instance>,
 }
 
 impl Drop for Surface {
@@ -39,7 +39,7 @@ impl Surface {
         };
 
         Ok(Arc::new(Self {
-            instance,
+            _instance: instance,
             surface,
             surface_khr,
         }))

@@ -3,18 +3,12 @@ pub mod layout;
 
 use std::{
     error::Error,
-    iter::zip,
     sync::{Arc, Mutex},
 };
 
 use ash::vk;
 
-use crate::{
-    device::Device,
-    error,
-    errors::{DescriptorError, DeviceError},
-    pipeline::descriptor::layout::PipelineLayout,
-};
+use crate::{device::Device, error, errors::DeviceError};
 
 pub struct DescriptorPool {
     pub(crate) handle: vk::DescriptorPool,

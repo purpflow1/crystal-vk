@@ -1,4 +1,4 @@
-use std::{error::Error, marker::PhantomData};
+use std::error::Error;
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle};
 
@@ -24,25 +24,5 @@ impl WindowSystemRawHandlers {
                 "cannot get window system handlers"
             ))))
         }
-    }
-}
-
-pub(crate) struct NullWindow {
-    _pd: PhantomData<()>,
-}
-
-impl HasWindowHandle for NullWindow {
-    fn window_handle(
-        &self,
-    ) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
-        Err(raw_window_handle::HandleError::Unavailable)
-    }
-}
-
-impl HasDisplayHandle for NullWindow {
-    fn display_handle(
-        &self,
-    ) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
-        Err(raw_window_handle::HandleError::Unavailable)
     }
 }

@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
 };
 
 use ash::vk;
@@ -9,11 +9,10 @@ use crate::{
     device::{Device, queue::Queue},
     error,
     errors::{DeviceError, SwapChainError},
-    image::{Image, ImageInfo},
-    sync::SwapchainFuture,
+    image::Image,
 };
 
-struct SwapchainInfo {
+pub(crate) struct SwapchainInfo {
     // Graphics pipeline requires this format of indices
     queue_family_indices: [u32; 2],
     extent: vk::Extent2D,

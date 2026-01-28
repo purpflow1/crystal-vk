@@ -2,9 +2,7 @@ use std::{error::Error, ffi::CString, sync::Arc};
 
 use ash::vk;
 
-use crate::{
-    device::Device, error, errors::PipelineError, pipeline::descriptor::layout::PipelineLayout,
-};
+use crate::{device::Device, error, errors::PipelineError};
 
 pub struct Shader {
     pub(crate) handle: vk::ShaderModule,

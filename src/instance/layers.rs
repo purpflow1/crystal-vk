@@ -8,7 +8,10 @@ pub(crate) fn get_supported_validation_layers(entry: &Entry) -> Vec<[i8; 256]> {
     let available_layers = match unsafe { entry.enumerate_instance_layer_properties() } {
         Ok(props) => props,
         Err(e) => {
-            dbg!(e);
+            #[allow(unused_must_use)]
+            {
+                dbg!(e);
+            }
             return vec![];
         }
     };

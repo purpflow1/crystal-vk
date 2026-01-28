@@ -2,7 +2,7 @@ use std::{
     collections::VecDeque,
     error::Error,
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::Arc,
     task::{Context, Poll, Waker},
     u64,
 };
@@ -10,10 +10,9 @@ use std::{
 use ash::vk;
 
 use crate::{
-    command::command_buffer::CommandBuffer,
-    device::{Device, queue::Queue},
+    device::Device,
     error,
-    errors::{CommandError, SwapchainOutOfDate, SyncError},
+    errors::{SwapchainOutOfDate, SyncError},
     render::swapchain::Swapchain,
     sync::GpuFuture,
 };
