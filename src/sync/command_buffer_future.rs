@@ -27,6 +27,8 @@ pub struct CommandBufferFuture {
 
     builder: Box<CommandBufferBuilder>,
 
+    suboptimal: bool,
+
     submitted: bool,
     completed: bool,
 
@@ -73,6 +75,7 @@ impl Future for CommandBufferFuture {
             match self.flush() {
                 Ok(()) => {
                     self.submitted = true;
+                    self.waker = Some(cx.waker().clone());
                 }
                 Err(e) => {
                     self.completed = true;
@@ -84,19 +87,10 @@ impl Future for CommandBufferFuture {
         match self.check_completion() {
             Ok(true) => {
                 self.completed = true;
-                let suboptimal = if self.present {
-                    match self.present() {
-                        Ok(suboptimal) => suboptimal,
-                        Err(e) => return Poll::Ready(Err(e)),
-                    }
-                } else {
-                    false
-                };
-                Poll::Ready(Ok(suboptimal))
+                Poll::Ready(Ok(self.suboptimal))
             }
             Ok(false) => {
                 self.waker = Some(cx.waker().clone());
-                let _ = self.check_completion();
                 Poll::Pending
             }
             Err(e) => {
@@ -180,6 +174,8 @@ impl CommandBufferFuture {
             signal_semaphores,
             builder: bulder,
 
+            suboptimal: false,
+
             present: false,
             image_index: u32::MAX,
             swapchain: None,
@@ -242,6 +238,9 @@ impl CommandBufferFuture {
         let mut queue = self.queue.lock().unwrap();
         queue.submit(&[submit_info], self.fence)?;
         drop(queue);
+
+        let suboptimal = if self.present { self.present()? } else { false };
+        self.suboptimal = suboptimal;
 
         self.submitted = true;
 
