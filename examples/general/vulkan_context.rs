@@ -16,7 +16,6 @@ use crystal_vk::{
         descriptor::descriptor_set_layout::descriptor_set::DescriptorSet,
     },
     render::{RenderTarget, swapchain::Swapchain},
-    sync::CommandBufferFuture,
 };
 
 type Vec3 = [f32; 3];
