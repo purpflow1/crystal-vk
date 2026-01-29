@@ -4,8 +4,9 @@ use ash::vk::{self};
 use crystal_vk::{
     command::command_buffer_builder::CommandBufferBuilder,
     render::{RenderTarget, swapchain::Swapchain},
-    sync::{GpuFuture, PresentFuture, SwapchainFuture},
+    sync::SwapchainFuture,
 };
+use pollster::FutureExt;
 
 use crate::vulkan_context::VulkanContext;
 
@@ -50,7 +51,21 @@ impl VulkanContext {
             .find(|(family, _)| family.flags.contains(vk::QueueFlags::GRAPHICS))
             .unwrap();
 
-        if self.recreate_swapchain {
+        let suboptimal = if let Some(future) = &mut self.prev_future {
+            match future.block_on() {
+                Ok(suboptimal) => suboptimal,
+                Err(e) => {
+                    dbg!(e);
+                    false
+                }
+            }
+        } else {
+            false
+        };
+
+        self.prev_future = None;
+
+        if suboptimal {
             self.swapchain = Swapchain::from_old(self.swapchain.clone(), self.extent).unwrap();
 
             let post_process_image = crystal_vk::image::Image::new(
@@ -82,19 +97,18 @@ impl VulkanContext {
                 4,
             )
             .unwrap();
-
-            self.recreate_swapchain = false
         }
 
         // TODO not safe
-        let mut swapchain_future =
+        let swapchain_future =
             SwapchainFuture::new(self.device.clone(), self.swapchain.clone()).unwrap();
 
         // blocks until aviability
-        let (image_index, _suboptimal) = match swapchain_future.acquire_next_image() {
+        let (image_index, _suboptimal) = match swapchain_future.block_on() {
             Ok(result) => result,
             Err(_e) => {
                 dbg!(_e);
+                self.prev_future = None;
                 return;
             }
         };
@@ -123,11 +137,11 @@ impl VulkanContext {
                 ..Default::default()
             }],
         )
-        .bind_pipeline(self.pipeline.clone(), vk::PipelineBindPoint::GRAPHICS)
+        .bind_pipeline(self.pipeline.clone())
         .bind_vertex_buffer(self.buffer_vert.clone())
         .bind_index_buffer(self.buffer_ind.clone())
         .bind_descriptor_sets(
-            self.pipeline.clone(),
+            self.pipeline.pipeline_layout.clone(),
             0,
             vec![self.per_object_descriptor_set.clone()],
         )
@@ -135,27 +149,23 @@ impl VulkanContext {
         .end_render_pass()
         .begin_render_pass(self.swapchain_render_target.clone(), image_index)
         .unwrap()
-        .bind_pipeline(
-            self.post_process_pipeline.clone(),
-            vk::PipelineBindPoint::GRAPHICS,
-        )
+        .bind_pipeline(self.post_process_pipeline.clone())
         .bind_vertex_buffer(self.buffer_vert.clone())
         .bind_index_buffer(self.buffer_ind.clone())
         .bind_descriptor_sets(
-            self.post_process_pipeline.clone(),
+            self.post_process_pipeline.pipeline_layout.clone(),
             0,
             vec![self.post_process_descriptor_set.clone()],
         )
         .draw_indexed(6, 1, 36, 8, 0)
         .end_render_pass();
 
-        let mut command_buffer_future = builder.build(queue).unwrap();
+        let command_buffer_future = builder
+            .build(queue)
+            .unwrap()
+            .then_present(self.swapchain.clone(), image_index)
+            .unwrap();
 
-        let mut present_future =
-            PresentFuture::new(self.device.clone(), self.swapchain.clone()).unwrap();
-        command_buffer_future.sync_with_present(&mut present_future);
-
-        command_buffer_future.flush().unwrap();
-        self.recreate_swapchain = present_future.present(image_index).unwrap();
+        self.prev_future = Some(Box::pin(command_buffer_future));
     }
 }

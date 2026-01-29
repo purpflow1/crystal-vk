@@ -51,17 +51,23 @@ impl Future for SwapchainFuture {
     type Output = Result<(u32, bool), Box<dyn Error>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if !self.submitted
-            && let Err(e) = self.acquire_next_image()
-        {
-            self.completed = true;
-            return Poll::Ready(Err(e));
+        if !self.submitted {
+            match self.acquire_next_image() {
+                Ok(_) => {
+                    self.submitted = true;
+                }
+                Err(e) => {
+                    self.completed = true;
+                    return Poll::Ready(Err(e));
+                }
+            }
         }
 
         match self.check_completion() {
             Ok(true) => Poll::Ready(Ok((self.image_index, self.suboptimal))),
             Ok(false) => {
                 self.waker = Some(cx.waker().clone());
+                let _ = self.check_completion();
                 Poll::Pending
             }
             Err(e) => Poll::Ready(Err(e)),
@@ -111,7 +117,7 @@ impl SwapchainFuture {
                 self.swapchain.swapchain_khr,
                 u64::MAX,
                 self.signal_semaphore.handle,
-                vk::Fence::null(),
+                self.fence,
             )
         } {
             Ok(result) => result,
@@ -127,10 +133,6 @@ impl SwapchainFuture {
 
         self.submitted = true;
 
-        if let Some(waker) = self.waker.take() {
-            waker.wake();
-        }
-
         Ok((image_index, suboptimal))
     }
 
@@ -141,13 +143,16 @@ impl SwapchainFuture {
 
         let result = unsafe { self.device.handle.get_fence_status(self.fence) };
 
+        if let Some(waker) = self.waker.take() {
+            waker.wake();
+        }
+
         match result {
             Ok(true) => {
                 self.completed = true;
                 Ok(true)
             }
-            Ok(false) => Ok(false),
-            Err(vk::Result::NOT_READY) => Ok(false),
+            Ok(false) | Err(vk::Result::NOT_READY) => Ok(false),
             Err(e) => error!(SyncError, "cannot get fence status: {e}"),
         }
     }

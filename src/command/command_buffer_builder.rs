@@ -12,7 +12,12 @@ use crate::{
     error,
     errors::CommandError,
     image::Image,
-    pipeline::{Pipeline, descriptor::descriptor_set_layout::descriptor_set::DescriptorSet},
+    pipeline::{
+        Pipeline,
+        descriptor::{
+            descriptor_set_layout::descriptor_set::DescriptorSet, layout::PipelineLayout,
+        },
+    },
     render::RenderTarget,
     sync::CommandBufferFuture,
 };
@@ -364,6 +369,19 @@ impl CommandBufferBuilder {
         Ok(self)
     }
 
+    pub fn dispatch(self: Box<Self>, group_count: [u32; 3]) -> Box<Self> {
+        unsafe {
+            self.command_buffer_allocator.device.handle.cmd_dispatch(
+                self.handle,
+                group_count[0],
+                group_count[1],
+                group_count[2],
+            );
+        }
+
+        self
+    }
+
     pub fn draw_indexed(
         self: Box<Self>,
         index_count: u32,
@@ -388,16 +406,17 @@ impl CommandBufferBuilder {
         self
     }
 
-    pub fn bind_descriptor_sets<T: 'static>(
+    pub fn bind_descriptor_sets(
         mut self: Box<Self>,
-        pipeline: Arc<Pipeline<T>>,
+        pipeline_layout: Arc<PipelineLayout>,
         first_set: u32,
         descriptor_sets: Vec<Arc<Mutex<DescriptorSet>>>,
     ) -> Box<Self> {
-        self.bindings.push(pipeline.clone());
+        self.bindings.push(pipeline_layout.clone());
         for descriptor_set in descriptor_sets.iter() {
             self.bindings.push(descriptor_set.clone());
         }
+
         unsafe {
             self.command_buffer_allocator
                 .device
@@ -405,7 +424,7 @@ impl CommandBufferBuilder {
                 .cmd_bind_descriptor_sets(
                     self.handle,
                     self.info.last_pipeline_bind_point,
-                    pipeline.pipeline_layout.handle,
+                    pipeline_layout.handle,
                     first_set,
                     &descriptor_sets
                         .iter()
@@ -470,19 +489,19 @@ impl CommandBufferBuilder {
         self
     }
 
-    pub fn bind_pipeline<T: 'static>(
-        mut self: Box<Self>,
-        pipeline: Arc<Pipeline<T>>,
-        pipeline_bind_point: vk::PipelineBindPoint,
-    ) -> Box<Self> {
-        self.bindings.push(pipeline.clone());
-        self.info.last_pipeline_bind_point = pipeline_bind_point;
+    pub fn bind_pipeline<T: 'static>(mut self: Box<Self>, pipeline: Arc<Pipeline<T>>) -> Box<Self> {
+        self.info.last_pipeline_bind_point = pipeline.bind_point;
 
+        self.bindings.push(pipeline.clone());
         unsafe {
             self.command_buffer_allocator
                 .device
                 .handle
-                .cmd_bind_pipeline(self.handle, pipeline_bind_point, pipeline.handle)
+                .cmd_bind_pipeline(
+                    self.handle,
+                    self.info.last_pipeline_bind_point,
+                    pipeline.handle,
+                )
         };
 
         self

@@ -12,10 +12,9 @@ use ash::vk::{self, DescriptorType, ShaderStageFlags};
 use crystal_vk::{
     buffer::{Buffer, BufferCreateInfo},
     command::{CommandBufferAllocator, command_buffer_builder::CommandBufferBuilder},
-    device::{Device, queue::Queue},
+    device::Device,
     image::sampler::{Sampler, SamplerInfo},
     pipeline::{
-        PipelineInfo,
         descriptor::{
             DescriptorPool,
             descriptor_set_layout::{
@@ -23,6 +22,7 @@ use crystal_vk::{
             },
             layout::PipelineLayout,
         },
+        graphics::GraphicsPipelineInfo,
         shader::Shader,
     },
     render::{RenderTarget, swapchain::Swapchain},
@@ -43,8 +43,7 @@ impl VulkanContext {
                 .unwrap()
         };
 
-        let device = Device::with_present(&window).unwrap();
-        let queues = Queue::instantiate(device.clone());
+        let (device, queues) = Device::with_present(|devices| devices[0].clone(), &window).unwrap();
 
         let present_queue = queues
             .iter()
@@ -148,7 +147,7 @@ impl VulkanContext {
             per_object_pipeline_layout,
             post_process_render_target.clone(),
             vec![shader_textured_vert, shader_textured_frag],
-            PipelineInfo::default(),
+            GraphicsPipelineInfo::default(),
         )
         .unwrap();
 
@@ -407,7 +406,7 @@ impl VulkanContext {
             post_process_pipeline_layout,
             swapchain_render_target.clone(),
             vec![post_process_vert, post_process_frag],
-            PipelineInfo::default(),
+            GraphicsPipelineInfo::default(),
         )
         .unwrap();
 
@@ -442,8 +441,7 @@ impl VulkanContext {
                 startup_time: SystemTime::now(),
                 last_frame: SystemTime::UNIX_EPOCH,
 
-                _prev_future: None,
-                recreate_swapchain: false,
+                prev_future: None,
 
                 extent: [1200, 800],
             },

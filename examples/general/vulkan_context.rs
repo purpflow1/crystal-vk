@@ -1,4 +1,6 @@
 use std::{
+    error::Error,
+    pin::Pin,
     sync::{Arc, Mutex, RwLock},
     time::SystemTime,
 };
@@ -64,8 +66,8 @@ pub struct VulkanContext {
     pub startup_time: SystemTime,
     pub last_frame: SystemTime,
 
-    pub _prev_future: Option<Box<CommandBufferFuture>>,
-    pub recreate_swapchain: bool,
+    pub prev_future:
+        Option<Pin<Box<dyn Future<Output = Result<bool, Box<dyn Error>>> + Send + Sync>>>,
 
     pub extent: [u32; 2],
 }

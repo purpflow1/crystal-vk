@@ -6,6 +6,7 @@ use std::{
 use ash::vk;
 
 use crate::{
+    command::binding::CommandBufferBinding,
     device::Device,
     error,
     errors::DescriptorError,
@@ -21,6 +22,8 @@ pub struct PipelineLayout {
 
 unsafe impl Send for PipelineLayout {}
 unsafe impl Sync for PipelineLayout {}
+
+impl CommandBufferBinding for PipelineLayout {}
 
 impl Drop for PipelineLayout {
     fn drop(&mut self) {

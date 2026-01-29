@@ -171,7 +171,7 @@ impl Swapchain {
             .unwrap();
 
         let mut swapchain_create_info = vk::SwapchainCreateInfoKHR::default()
-            .surface(device.surface.surface_khr)
+            .surface(device.surface.as_ref().unwrap().surface_khr)
             .min_image_count(swapchain_info.image_count)
             .image_format(swapchain_info.surface_format.format)
             .image_color_space(swapchain_info.surface_format.color_space)

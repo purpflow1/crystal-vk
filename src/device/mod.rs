@@ -6,18 +6,23 @@ use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use std::{error::Error, sync::Arc};
 
 use crate::{
-    device::physical_device::PhysicalDevice,
-    errors::DeviceError,
+    device::{
+        physical_device::PhysicalDevice,
+        queue::{Queue, QueuePool},
+    },
     instance,
-    render::surface::{self, window},
+    render::surface::{
+        self,
+        window::{self, WindowSystemRawHandlers},
+    },
 };
 
 pub struct Device {
     pub(crate) handle: ash::Device,
     pub(crate) instance: Arc<instance::Instance>,
-    pub(crate) surface: Arc<surface::Surface>,
     pub(crate) physical_device: Arc<physical_device::PhysicalDevice>,
     pub(crate) extensions: Vec<String>,
+    pub(crate) surface: Option<Arc<surface::Surface>>,
 }
 
 unsafe impl Send for Device {}
@@ -29,42 +34,55 @@ impl Drop for Device {
 }
 
 impl Device {
-    pub fn compute() -> Result<Arc<Self>, Box<dyn Error>> {
-        //Self::new_in::<NullWindow>(None)
-        todo!()
+    pub fn compute<P>(
+        physical_device_pick_predicate: P,
+    ) -> Result<(Arc<Self>, QueuePool), Box<dyn Error>>
+    where
+        P: Fn(Vec<Arc<PhysicalDevice>>) -> Arc<PhysicalDevice>,
+    {
+        let device = Self::new_in(physical_device_pick_predicate, None)?;
+        let queues = Queue::instantiate(device.clone());
+        Ok((device, queues))
     }
 
-    pub fn with_present<T: HasWindowHandle + HasDisplayHandle>(
+    pub fn with_present<T: HasWindowHandle + HasDisplayHandle, P>(
+        physical_device_pick_predicate: P,
         window: &T,
-    ) -> Result<Arc<Self>, Box<dyn Error>> {
-        let ws_handlers = window::WindowSystemRawHandlers::new(window)?;
+    ) -> Result<(Arc<Self>, QueuePool), Box<dyn Error>>
+    where
+        P: Fn(Vec<Arc<PhysicalDevice>>) -> Arc<PhysicalDevice>,
+    {
+        let handlers = WindowSystemRawHandlers::new(window)?;
+        let device = Self::new_in(physical_device_pick_predicate, Some(handlers))?;
+        let queues = Queue::instantiate(device.clone());
+        Ok((device, queues))
+    }
 
-        let instance = instance::Instance::new(Some(ws_handlers))?;
-        let surface = surface::Surface::new(instance.clone())?;
+    fn new_in<P>(
+        physical_device_pick_predicate: P,
+        handlers: Option<window::WindowSystemRawHandlers>,
+    ) -> Result<Arc<Self>, Box<dyn Error>>
+    where
+        P: Fn(Vec<Arc<PhysicalDevice>>) -> Arc<PhysicalDevice>,
+    {
+        let instance = instance::Instance::new(handlers)?;
+
+        let surface = match handlers {
+            Some(_) => Some(surface::Surface::new(instance.clone())?),
+            None => None,
+        };
 
         let physical_devices_raw = unsafe { instance.enumerate_physical_devices() }?;
         let physical_devices = unsafe {
-            PhysicalDevice::new(
-                instance.clone(),
-                Some(surface.clone()),
-                physical_devices_raw,
-            )
+            PhysicalDevice::new(instance.clone(), surface.clone(), physical_devices_raw)
         }?;
 
-        let physical_device = if let Some(physical_device) = physical_devices.iter().find(|pd| {
-            pd.properties.device_type == ash::vk::PhysicalDeviceType::DISCRETE_GPU
-                || pd.properties.device_type == ash::vk::PhysicalDeviceType::INTEGRATED_GPU
-        }) {
-            dbg!(physical_device);
-            physical_device.clone()
-        } else {
-            return Err(Box::new(DeviceError::new(
-                "no supported GPU's found".to_string(),
-            )));
-        };
+        let physical_device = physical_device_pick_predicate(physical_devices);
 
-        let (device_handler, extensions) = physical_device
-            .create_device(vk::PhysicalDeviceFeatures::default().sampler_anisotropy(true))?;
+        let (device_handler, extensions) = physical_device.create_device(
+            vk::PhysicalDeviceFeatures::default().sampler_anisotropy(true),
+            handlers.is_some(),
+        )?;
 
         let device = Arc::new(Self {
             handle: device_handler,

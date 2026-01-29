@@ -12,7 +12,8 @@ use crate::{
     command::command_buffer_builder::CommandBufferBuilder,
     device::{Device, queue::Queue},
     error,
-    errors::SyncError,
+    errors::{QueueError, SyncError},
+    render::swapchain::Swapchain,
     sync::{GpuFuture, Semaphore},
 };
 
@@ -28,18 +29,23 @@ pub struct CommandBufferFuture {
 
     submitted: bool,
     completed: bool,
+
+    present: bool,
+    image_index: u32,
+    swapchain: Option<Arc<Swapchain>>,
+
     waker: Option<Waker>,
 }
 
 impl Drop for CommandBufferFuture {
     fn drop(&mut self) {
-        // if self.submitted && !self.completed {
-        //     let _ = unsafe {
-        //         self.device
-        //             .handle
-        //             .wait_for_fences(&[self.fence], true, u64::MAX)
-        //     };
-        // }
+        if self.submitted && !self.completed {
+            let _ = unsafe {
+                self.device
+                    .handle
+                    .wait_for_fences(&[self.fence], true, u64::MAX)
+            };
+        }
 
         unsafe {
             self.device.handle.destroy_fence(self.fence, None);
@@ -60,28 +66,96 @@ impl GpuFuture for CommandBufferFuture {
 }
 
 impl Future for CommandBufferFuture {
-    type Output = Result<(), Box<dyn Error>>;
+    type Output = Result<bool, Box<dyn Error>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if !self.submitted
-            && let Err(e) = self.flush()
-        {
-            self.completed = true;
-            return Poll::Ready(Err(e));
+        if !self.submitted {
+            match self.flush() {
+                Ok(()) => {
+                    self.submitted = true;
+                }
+                Err(e) => {
+                    self.completed = true;
+                    return Poll::Ready(Err(e));
+                }
+            }
         }
 
         match self.check_completion() {
-            Ok(true) => Poll::Ready(Ok(())),
+            Ok(true) => {
+                self.completed = true;
+                let suboptimal = if self.present {
+                    match self.present() {
+                        Ok(suboptimal) => suboptimal,
+                        Err(e) => return Poll::Ready(Err(e)),
+                    }
+                } else {
+                    false
+                };
+                Poll::Ready(Ok(suboptimal))
+            }
             Ok(false) => {
                 self.waker = Some(cx.waker().clone());
+                let _ = self.check_completion();
                 Poll::Pending
             }
-            Err(e) => Poll::Ready(Err(e)),
+            Err(e) => {
+                self.completed = true;
+                Poll::Ready(Err(e))
+            }
         }
     }
 }
 
 impl CommandBufferFuture {
+    pub fn then_present(
+        mut self: Box<Self>,
+        swapchain: Arc<Swapchain>,
+        image_index: u32,
+    ) -> Result<Box<Self>, Box<dyn Error>> {
+        self.present = true;
+        self.swapchain = Some(swapchain);
+        self.image_index = image_index;
+        Ok(self)
+    }
+
+    pub fn present(&self) -> Result<bool, Box<QueueError>> {
+        let wait_semaphores_vec: Vec<vk::Semaphore> = self
+            .signal_semaphores
+            .iter()
+            .cloned()
+            .map(|s| s.handle)
+            .collect();
+        let swapchains = [self.swapchain.as_ref().unwrap().swapchain_khr];
+        let image_indices = [self.image_index];
+
+        let present_info = vk::PresentInfoKHR::default()
+            .wait_semaphores(&wait_semaphores_vec)
+            .swapchains(&swapchains)
+            .image_indices(&image_indices);
+
+        let queue_lock = self
+            .swapchain
+            .as_ref()
+            .unwrap()
+            .present_queue
+            .lock()
+            .unwrap();
+
+        let suboptimal = match unsafe {
+            self.swapchain
+                .as_ref()
+                .unwrap()
+                .swapchain
+                .queue_present(queue_lock.handle, &present_info)
+        } {
+            Ok(suboptimal) => suboptimal,
+            Err(e) => return error!(QueueError, "cannot queue_present: {e}"),
+        };
+
+        Ok(suboptimal)
+    }
+
     pub(crate) fn new(
         bulder: Box<CommandBufferBuilder>,
         queue: Arc<Mutex<Queue>>,
@@ -105,23 +179,36 @@ impl CommandBufferFuture {
             wait_semaphores: VecDeque::new(),
             signal_semaphores,
             builder: bulder,
+
+            present: false,
+            image_index: u32::MAX,
+            swapchain: None,
+
             submitted: false,
             completed: false,
             waker: None,
         }))
     }
 
-    pub fn wait(&mut self) -> Result<(), Box<dyn Error>> {
-        unsafe {
-            if let Err(e) = self
-                .device
-                .handle
-                .wait_for_fences(&[self.fence], true, u64::MAX)
-            {
-                return error!(SyncError, "error waiting for fences: {e}");
-            }
+    fn check_completion(&mut self) -> Result<bool, Box<dyn Error>> {
+        if !self.submitted || self.completed {
+            return Ok(self.completed);
         }
-        Ok(())
+
+        let result = unsafe { self.device.handle.get_fence_status(self.fence) };
+
+        if let Some(waker) = self.waker.take() {
+            waker.wake();
+        }
+
+        match result {
+            Ok(true) => {
+                self.completed = true;
+                Ok(true)
+            }
+            Ok(false) | Err(vk::Result::NOT_READY) => Ok(false),
+            Err(e) => error!(SyncError, "cannot get fence status: {e}"),
+        }
     }
 
     pub fn flush(&mut self) -> Result<(), Box<dyn Error>> {
@@ -158,28 +245,19 @@ impl CommandBufferFuture {
 
         self.submitted = true;
 
-        if let Some(waker) = self.waker.take() {
-            waker.wake();
-        }
-
         Ok(())
     }
 
-    fn check_completion(&mut self) -> Result<bool, Box<dyn Error>> {
-        if !self.submitted || self.completed {
-            return Ok(self.completed);
-        }
-
-        let result = unsafe { self.device.handle.get_fence_status(self.fence) };
-
-        match result {
-            Ok(true) => {
-                self.completed = true;
-                Ok(true)
+    pub fn wait(&mut self) -> Result<(), Box<dyn Error>> {
+        unsafe {
+            if let Err(e) = self
+                .device
+                .handle
+                .wait_for_fences(&[self.fence], true, u64::MAX)
+            {
+                return error!(SyncError, "error waiting for fences: {e}");
             }
-            Ok(false) => Ok(false),
-            Err(vk::Result::NOT_READY) => Ok(false),
-            Err(e) => error!(SyncError, "cannot get fence status: {e}"),
         }
+        Ok(())
     }
 }
