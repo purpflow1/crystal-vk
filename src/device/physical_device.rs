@@ -14,20 +14,24 @@ pub struct SwapChainSupportDetails {
     pub capabilities: vk::SurfaceCapabilitiesKHR,
 }
 
-pub struct PhysicalDevice {
-    pub handle: vk::PhysicalDevice,
+pub struct PhysicalDeviceInfo {
     pub name: String,
     pub properties: vk::PhysicalDeviceProperties,
     pub memory_properties: vk::PhysicalDeviceMemoryProperties,
     pub queue_family_properties: Vec<vk::QueueFamilyProperties>,
     pub queue_families_info: Vec<QueueFamilyInfo>,
+}
+
+pub struct PhysicalDevice {
+    pub handle: vk::PhysicalDevice,
+    pub info: PhysicalDeviceInfo,
     pub swap_chain_support_details: Option<SwapChainSupportDetails>,
     pub(crate) instance: Arc<Instance>,
 }
 
 impl std::fmt::Debug for PhysicalDevice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("PhysicalDevice: {}", self.name).as_str())
+        f.write_str(format!("PhysicalDevice: {}", self.info.name).as_str())
     }
 }
 
@@ -37,9 +41,10 @@ impl PhysicalDevice {
         flags: vk::MemoryPropertyFlags,
         type_filter: u32,
     ) -> Result<u32, Box<dyn Error>> {
-        for i in 0..self.memory_properties.memory_type_count {
+        for i in 0..self.info.memory_properties.memory_type_count {
             if (type_filter & (1 << i)) != 0
-                && (self.memory_properties.memory_types[i as usize].property_flags & flags) == flags
+                && (self.info.memory_properties.memory_types[i as usize].property_flags & flags)
+                    == flags
             {
                 return Ok(i);
             }
@@ -182,11 +187,14 @@ impl PhysicalDevice {
 
                 Arc::new(Self {
                     handle: *physical_device,
-                    name: device_name.to_string(),
-                    properties,
-                    memory_properties,
-                    queue_family_properties,
-                    queue_families_info: queue_families,
+                    info: PhysicalDeviceInfo {
+                        name: device_name.to_string(),
+                        properties,
+                        memory_properties,
+                        queue_family_properties,
+                        queue_families_info: queue_families,
+                    },
+
                     swap_chain_support_details,
                     instance: instance.clone(),
                 })
@@ -249,9 +257,9 @@ impl PhysicalDevice {
     ) -> Result<(ash::Device, Vec<String>), Box<dyn Error>> {
         let extensions = self.query_extensions_support(enable_swapchain)?;
 
-        let mut device_queue_create_infos = Vec::with_capacity(self.queue_families_info.len());
+        let mut device_queue_create_infos = Vec::with_capacity(self.info.queue_families_info.len());
 
-        for info in &self.queue_families_info {
+        for info in &self.info.queue_families_info {
             // TODO add more queues
             device_queue_create_infos.push(
                 vk::DeviceQueueCreateInfo::default()

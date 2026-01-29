@@ -34,6 +34,7 @@ impl SwapchainInfo {
         let queue_family_indices = [
             match device
                 .physical_device
+                .info
                 .queue_families_info
                 .iter()
                 .find(|info| info.flags.intersects(vk::QueueFlags::GRAPHICS))
@@ -45,6 +46,7 @@ impl SwapchainInfo {
             },
             match device
                 .physical_device
+                .info
                 .queue_families_info
                 .iter()
                 .find(|info| info.present_support)

@@ -40,11 +40,13 @@ impl RenderTarget {
     ) -> Result<Arc<Self>, Box<dyn Error>> {
         let counts = device
             .physical_device
+            .info
             .properties
             .limits
             .framebuffer_color_sample_counts
             & device
                 .physical_device
+                .info
                 .properties
                 .limits
                 .framebuffer_depth_sample_counts;

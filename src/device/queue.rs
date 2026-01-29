@@ -63,6 +63,7 @@ impl Queue {
 
         device
             .physical_device
+            .info
             .queue_families_info
             .iter()
             .for_each(|info| {
