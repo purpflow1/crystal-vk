@@ -7,6 +7,7 @@ use crystal_vk::{
     sync::SwapchainFuture,
 };
 use futures::executor;
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 use crate::vulkan_context::VulkanContext;
 
@@ -65,8 +66,15 @@ impl VulkanContext {
 
         self.prev_future = None;
 
+        let queue = queues[0].clone();
+
         if suboptimal {
-            self.swapchain = Swapchain::from_old(self.swapchain.clone(), self.extent).unwrap();
+            self.swapchain = match window.window_handle().unwrap().as_raw() {
+                RawWindowHandle::Wayland(_) => {
+                    Swapchain::new(queue.clone(), self.extent, true).unwrap()
+                }
+                _ => Swapchain::from_old(self.swapchain.clone(), self.extent).unwrap(),
+            };
 
             let post_process_image = crystal_vk::image::Image::new(
                 self.device.clone(),
@@ -108,13 +116,10 @@ impl VulkanContext {
             Ok(result) => result,
             Err(_e) => {
                 dbg!(_e);
-                self.prev_future = None;
                 executor::block_on(swapchain_future).unwrap();
                 return;
             }
         };
-
-        let queue = queues[0].clone();
 
         if suboptimal_or_out_of_date {
             executor::block_on(swapchain_future).unwrap();
