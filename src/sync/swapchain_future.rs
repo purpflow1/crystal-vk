@@ -34,12 +34,11 @@ pub struct SwapchainFuture {
 impl Drop for SwapchainFuture {
     fn drop(&mut self) {
         if self.submitted && !self.completed {
-            self.swapchain
-                .present_queue
-                .lock()
-                .unwrap()
-                .wait_idle()
-                .unwrap();
+            let _ = unsafe {
+                self.device
+                    .handle
+                    .wait_for_fences(&[self.fence], true, u64::MAX)
+            };
         }
         unsafe {
             self.device.handle.destroy_fence(self.fence, None);
