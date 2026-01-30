@@ -116,6 +116,7 @@ impl VulkanContext {
         let queue = queues[0].clone();
 
         if suboptimal_or_out_of_date {
+            executor::block_on(swapchain_future).unwrap();
             self.swapchain = Swapchain::new(queue.clone(), self.extent, true).unwrap();
 
             let post_process_image = crystal_vk::image::Image::new(
