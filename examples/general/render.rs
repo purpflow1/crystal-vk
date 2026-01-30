@@ -104,7 +104,7 @@ impl VulkanContext {
             SwapchainFuture::new(self.device.clone(), self.swapchain.clone()).unwrap();
 
         // blocks until aviability
-        let (image_index, suboptimal) = match swapchain_future.acquire_next_image() {
+        let (image_index, suboptimal_or_out_of_date) = match swapchain_future.acquire_next_image() {
             Ok(result) => result,
             Err(_e) => {
                 dbg!(_e);
@@ -115,8 +115,7 @@ impl VulkanContext {
 
         let queue = queues[0].clone();
 
-        if suboptimal {
-            dbg!("swapchain", suboptimal);
+        if suboptimal_or_out_of_date {
             self.swapchain = Swapchain::new(queue.clone(), self.extent, true).unwrap();
 
             let post_process_image = crystal_vk::image::Image::new(
