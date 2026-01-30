@@ -21,4 +21,4 @@ shaderc = "0.10.1"
 winit = { version = "0.30.10", features = ["rwh_06"] }
 glam = "0.30.3"
 png = "0.18.0"
-pollster = "0.4.0"
+futures = "0.3.31"

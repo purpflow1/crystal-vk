@@ -6,7 +6,7 @@ use crystal_vk::{
     render::{RenderTarget, swapchain::Swapchain},
     sync::SwapchainFuture,
 };
-use pollster::FutureExt;
+use futures::executor;
 
 use crate::vulkan_context::VulkanContext;
 
@@ -52,7 +52,7 @@ impl VulkanContext {
             .unwrap();
 
         let suboptimal = if let Some(future) = &mut self.prev_future {
-            match future.block_on() {
+            match executor::block_on(future) {
                 Ok(suboptimal) => suboptimal,
                 Err(e) => {
                     dbg!(e);
@@ -100,11 +100,11 @@ impl VulkanContext {
         }
 
         // TODO not safe
-        let swapchain_future =
+        let mut swapchain_future =
             SwapchainFuture::new(self.device.clone(), self.swapchain.clone()).unwrap();
 
         // blocks until aviability
-        let (image_index, _suboptimal) = match swapchain_future.block_on() {
+        let (image_index, _suboptimal) = match swapchain_future.acquire_next_image() {
             Ok(result) => result,
             Err(_e) => {
                 dbg!(_e);
@@ -160,11 +160,15 @@ impl VulkanContext {
         .draw_indexed(6, 1, 36, 8, 0)
         .end_render_pass();
 
+        executor::block_on(swapchain_future).unwrap();
+
         let command_buffer_future = builder
             .build(queue)
             .unwrap()
             .then_present(self.swapchain.clone(), image_index)
             .unwrap();
+
+        // command_buffer_future.flush().unwrap();
 
         self.prev_future = Some(Box::pin(command_buffer_future));
     }

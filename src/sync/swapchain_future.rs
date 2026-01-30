@@ -48,13 +48,14 @@ impl Drop for SwapchainFuture {
 }
 
 impl Future for SwapchainFuture {
-    type Output = Result<(u32, bool), Box<dyn Error>>;
+    type Output = Result<(), Box<dyn Error>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if !self.submitted {
             match self.acquire_next_image() {
                 Ok(_) => {
                     self.submitted = true;
+                    self.waker = Some(cx.waker().clone());
                 }
                 Err(e) => {
                     self.completed = true;
@@ -64,13 +65,18 @@ impl Future for SwapchainFuture {
         }
 
         match self.check_completion() {
-            Ok(true) => Poll::Ready(Ok((self.image_index, self.suboptimal))),
+            Ok(true) => {
+                self.completed = true;
+                Poll::Ready(Ok(()))
+            }
             Ok(false) => {
                 self.waker = Some(cx.waker().clone());
-                let _ = self.check_completion();
                 Poll::Pending
             }
-            Err(e) => Poll::Ready(Err(e)),
+            Err(e) => {
+                self.completed = true;
+                Poll::Ready(Err(e))
+            }
         }
     }
 }
