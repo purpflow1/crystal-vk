@@ -61,8 +61,6 @@ impl RenderTarget {
             _ => vk::SampleCountFlags::TYPE_1,
         };
 
-        dbg!(counts, samples);
-
         if !samples.intersects(counts) {
             let s = msaa_samples;
 
