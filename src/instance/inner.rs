@@ -77,7 +77,7 @@ pub(super) fn new_in(
                 .application_info(&app_info)
                 .enabled_extension_names(&instance_extensions);
 
-            create_info.pp_enabled_layer_names = layers_pp.as_ptr();
+            create_info.pp_enabled_layer_names = layers_pp.as_ptr() as *const _;
             create_info.enabled_layer_count = layers_pp.len() as u32;
 
             create_info
