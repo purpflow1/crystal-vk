@@ -69,12 +69,7 @@ impl VulkanContext {
         let queue = queues[0].clone();
 
         if suboptimal {
-            self.swapchain = match window.window_handle().unwrap().as_raw() {
-                RawWindowHandle::Wayland(_) => {
-                    Swapchain::new(queue.clone(), self.extent, true).unwrap()
-                }
-                _ => Swapchain::from_old(self.swapchain.clone(), self.extent).unwrap(),
-            };
+            self.swapchain = Swapchain::from_old(self.swapchain.clone(), self.extent).unwrap();
 
             let post_process_image = crystal_vk::image::Image::new(
                 self.device.clone(),
