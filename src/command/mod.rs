@@ -1,4 +1,3 @@
-pub mod binding;
 pub mod command_buffer_builder;
 
 use std::{

@@ -1,4 +1,3 @@
-pub mod binding;
 pub mod descriptor_set;
 
 use std::{collections::BTreeMap, error::Error, sync::Arc};

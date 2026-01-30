@@ -6,11 +6,11 @@ use std::{
 use ash::vk;
 
 use crate::{
-    command::binding::CommandBufferBinding,
     device::Device,
     error,
     errors::DescriptorError,
     pipeline::descriptor::{DescriptorPool, descriptor_set_layout::DescriptorSetLayout},
+    traits::CommandBufferBinding,
 };
 
 pub struct PipelineLayout {

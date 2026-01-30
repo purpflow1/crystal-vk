@@ -8,9 +8,9 @@ use std::{marker::PhantomData, sync::Arc};
 use ash::vk;
 
 use crate::{
-    command::binding::CommandBufferBinding,
     pipeline::{descriptor::layout::PipelineLayout, shader::Shader},
     render::RenderTarget,
+    traits::CommandBufferBinding,
 };
 
 pub mod attribute;
@@ -34,6 +34,7 @@ pub struct Pipeline<V> {
 
 unsafe impl<T> Send for Pipeline<T> {}
 unsafe impl<T> Sync for Pipeline<T> {}
+impl<T> CommandBufferBinding for Pipeline<T> {}
 
 impl<V> Drop for Pipeline<V> {
     fn drop(&mut self) {
@@ -45,5 +46,3 @@ impl<V> Drop for Pipeline<V> {
         }
     }
 }
-
-impl<T> CommandBufferBinding for Pipeline<T> {}

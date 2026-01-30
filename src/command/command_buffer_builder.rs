@@ -7,7 +7,7 @@ use ash::vk;
 
 use crate::{
     buffer::Buffer,
-    command::{CommandBufferAllocator, binding::CommandBufferBinding},
+    command::CommandBufferAllocator,
     device::queue::Queue,
     error,
     errors::CommandError,
@@ -20,6 +20,7 @@ use crate::{
     },
     render::RenderTarget,
     sync::CommandBufferFuture,
+    traits::CommandBufferBinding,
 };
 
 #[derive(Default)]

@@ -7,3 +7,4 @@ pub mod instance;
 pub mod pipeline;
 pub mod render;
 pub mod sync;
+pub mod traits;

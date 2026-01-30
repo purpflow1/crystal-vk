@@ -8,14 +8,11 @@ use ash::vk;
 
 use crate::{
     buffer::Buffer,
-    command::binding::CommandBufferBinding,
     error,
     errors::DescriptorError,
     image::{Image, sampler::Sampler},
-    pipeline::descriptor::{
-        DescriptorPool,
-        descriptor_set_layout::{DescriptorSetLayout, binding::DescriptorSetBinding},
-    },
+    pipeline::descriptor::{DescriptorPool, descriptor_set_layout::DescriptorSetLayout},
+    traits::{CommandBufferBinding, DescriptorSetBinding},
 };
 
 pub struct DescriptorSet {

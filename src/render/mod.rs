@@ -11,7 +11,6 @@ use std::{
 use ash::vk;
 
 use crate::{
-    command::binding::CommandBufferBinding,
     device::Device,
     error,
     errors::DeviceError,
@@ -20,6 +19,7 @@ use crate::{
         framebuffer::FramebufferPool,
         render_pass::{RenderPass, RenderPassInfo},
     },
+    traits::CommandBufferBinding,
 };
 
 pub struct RenderTarget {

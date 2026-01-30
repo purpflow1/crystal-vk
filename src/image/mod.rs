@@ -5,11 +5,10 @@ use std::{cell::Cell, error::Error, sync::Arc};
 use ash::vk;
 
 use crate::{
-    command::binding::CommandBufferBinding,
     device::Device,
     error,
     errors::{DeviceError, ImageError},
-    pipeline::descriptor::descriptor_set_layout::binding::DescriptorSetBinding,
+    traits::{CommandBufferBinding, DescriptorSetBinding},
 };
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]

@@ -11,9 +11,8 @@ use ash::vk;
 
 use crate::{
     buffer::memory::{BufferData, BufferInfo},
-    command::binding::CommandBufferBinding,
     device::Device,
-    pipeline::descriptor::descriptor_set_layout::binding::DescriptorSetBinding,
+    traits::{CommandBufferBinding, DescriptorSetBinding},
 };
 
 pub struct BufferCreateInfo {

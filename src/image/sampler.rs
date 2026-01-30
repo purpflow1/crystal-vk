@@ -3,8 +3,7 @@ use std::{error::Error, sync::Arc};
 use ash::vk;
 
 use crate::{
-    device::Device, error, errors::ImageError, image::Image,
-    pipeline::descriptor::descriptor_set_layout::binding::DescriptorSetBinding,
+    device::Device, error, errors::ImageError, image::Image, traits::DescriptorSetBinding,
 };
 
 pub struct SamplerInfo {
