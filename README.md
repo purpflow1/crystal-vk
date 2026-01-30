@@ -4,7 +4,7 @@
 ## Features
 - [x] Linux, MacOS, Windows support
 - [x] Safe lifetimes
-- [ ] Compute pipeline
+- [x] Compute pipeline
 - [ ] Raytracing pipeline
 - [ ] Command buffers compile-time validation
 
