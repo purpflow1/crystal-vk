@@ -56,7 +56,7 @@ impl VulkanContext {
                 Ok(suboptimal) => suboptimal,
                 Err(e) => {
                     dbg!(e);
-                    false
+                    true
                 }
             }
         } else {
@@ -104,7 +104,7 @@ impl VulkanContext {
             SwapchainFuture::new(self.device.clone(), self.swapchain.clone()).unwrap();
 
         // blocks until aviability
-        let (image_index, _suboptimal) = match swapchain_future.acquire_next_image() {
+        let (image_index, suboptimal) = match swapchain_future.acquire_next_image() {
             Ok(result) => result,
             Err(_e) => {
                 dbg!(_e);
@@ -114,6 +114,43 @@ impl VulkanContext {
         };
 
         let queue = queues[0].clone();
+
+        if suboptimal {
+            dbg!("swapchain", suboptimal);
+            self.swapchain = Swapchain::new(queue.clone(), self.extent, true).unwrap();
+
+            let post_process_image = crystal_vk::image::Image::new(
+                self.device.clone(),
+                self.extent,
+                vk::Format::R8G8B8A8_SRGB,
+            )
+            .unwrap();
+
+            let mut lock = self.post_process_descriptor_set.lock().unwrap();
+            lock.bind_combined_image_sampler(
+                post_process_image.clone(),
+                self.post_process_sampler.clone(),
+                1,
+                0,
+                1,
+            )
+            .unwrap();
+
+            drop(lock);
+
+            self.post_process_render_target =
+                RenderTarget::new(self.device.clone(), vec![post_process_image.clone()], 4)
+                    .unwrap();
+
+            self.swapchain_render_target = RenderTarget::new(
+                self.device.clone(),
+                self.swapchain.image_sequence.clone(),
+                4,
+            )
+            .unwrap();
+
+            return;
+        }
 
         let builder = CommandBufferBuilder::new(
             self.command_allocator.clone(),

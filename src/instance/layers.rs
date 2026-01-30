@@ -1,8 +1,8 @@
-use ash::Entry;
+use ash::{Entry, vk};
 
 const VALIDATION_LAYERS: &[&str] = &["VK_LAYER_KHRONOS_validation"];
 
-pub(crate) fn get_supported_validation_layers(entry: &Entry) -> Vec<[i8; 256]> {
+pub(crate) fn get_supported_validation_layers(entry: &Entry) -> Vec<[u8; 256]> {
     let mut supported_layers = Vec::new();
 
     let available_layers = match unsafe { entry.enumerate_instance_layer_properties() } {
@@ -25,7 +25,14 @@ pub(crate) fn get_supported_validation_layers(entry: &Entry) -> Vec<[i8; 256]> {
         };
         for &right in VALIDATION_LAYERS {
             if left == right {
-                supported_layers.push(left_layer.layer_name)
+                let mut uname = [0u8; vk::MAX_EXTENSION_NAME_SIZE];
+                let vec = left_layer
+                    .layer_name
+                    .iter()
+                    .map(|byte| *byte as u8)
+                    .collect::<Vec<_>>();
+                uname.clone_from_slice(&vec);
+                supported_layers.push(uname)
             }
         }
     }

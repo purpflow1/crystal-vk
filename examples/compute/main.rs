@@ -23,7 +23,7 @@ use crystal_vk::{
         shader::Shader,
     },
 };
-use pollster::FutureExt;
+use futures::executor;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let (device, queues) = Device::compute(|devices| devices[0].clone())?;
@@ -128,7 +128,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .dispatch([1, 1, 1]);
 
     let future = command_buffer_builder.build(queue)?;
-    async { future.await }.block_on()?;
+    executor::block_on(future)?;
 
     let lock = buffer_out.read().unwrap();
     let data = &lock[..2];

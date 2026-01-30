@@ -70,7 +70,7 @@ pub(super) fn new_in(
                 .application_info(&app_info)
                 .enabled_extension_names(&instance_extensions)
         } else {
-            layers_pp = layers.iter().map(|x| x.as_ptr()).collect();
+            layers_pp = layers.iter().map(|x| x.as_ptr() as *const _).collect();
 
             let mut create_info = vk::InstanceCreateInfo::default()
                 .flags(flags)
