@@ -109,6 +109,7 @@ impl VulkanContext {
             Err(_e) => {
                 dbg!(_e);
                 self.prev_future = None;
+                executor::block_on(swapchain_future).unwrap();
                 return;
             }
         };
