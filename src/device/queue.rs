@@ -75,7 +75,9 @@ impl Queue {
                         }))
                     })
                     .collect::<Vec<Arc<Mutex<Queue>>>>();
-                queues.insert(*info, family_queues).unwrap_or_default();
+                if info.queue_count > 0 {
+                    queues.insert(*info, family_queues).unwrap_or_default();
+                }
             });
 
         queues
