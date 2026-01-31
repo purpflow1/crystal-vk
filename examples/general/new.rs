@@ -5,6 +5,7 @@ use std::{
     ffi::CString,
     fs::File,
     io::{BufReader, Read},
+    sync::{Arc, atomic::AtomicBool},
 };
 
 use ash::vk::{self, DescriptorType, ShaderStageFlags};
@@ -418,6 +419,9 @@ impl VulkanContext {
 
         (
             Self {
+                heartbeat: Arc::new(AtomicBool::new(true)),
+                stop_flag: Arc::new(AtomicBool::new(false)),
+                watcher: None,
                 device,
                 queues,
                 post_process_render_target,
@@ -438,6 +442,7 @@ impl VulkanContext {
                 post_process_descriptor_set,
 
                 timeline: Timeline::new(),
+                first_frame: true,
 
                 prev_future: None,
 

@@ -3,6 +3,7 @@ mod render;
 mod timeline;
 mod vulkan_context;
 use vulkan_context::*;
+mod watcher;
 
 use winit::{
     application::ApplicationHandler,
@@ -60,6 +61,8 @@ impl ApplicationHandler for ContextWindow {
 }
 
 fn main() {
+    unsafe { std::env::set_var("RUST_BACKTRACE", "1") };
+
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Poll);
 

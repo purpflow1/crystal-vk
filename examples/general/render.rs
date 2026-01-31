@@ -1,4 +1,4 @@
-use std::{error::Error, f32::consts::PI};
+use std::{error::Error, f32::consts::PI, sync::atomic::Ordering, time::Duration};
 
 use ash::vk::{self};
 use crystal_vk::{
@@ -8,18 +8,29 @@ use crystal_vk::{
 };
 use futures::executor;
 
-use crate::vulkan_context::VulkanContext;
+use crate::{vulkan_context::VulkanContext, watcher::watcher};
 
 impl VulkanContext {
     /// # Safety
     /// It's better to `unwrap()` here, so it's easier to debug
     pub fn render(&mut self, window: &winit::window::Window) -> Result<(), Box<dyn Error>> {
+        if self.first_frame {
+            self.watcher = {
+                let stop_flag = self.stop_flag.clone();
+                let heartbeat = self.heartbeat.clone();
+                Some(watcher(stop_flag, heartbeat, Duration::from_secs(1)))
+            };
+
+            self.first_frame = false;
+        }
+
+        self.heartbeat.store(true, Ordering::Relaxed);
         self.timeline.frame_begin();
 
         let aspect_ratio = self.extent[0] as f32 / self.extent[1] as f32;
         window.set_title(
             format!(
-                "FPS: [avg {} min {} max {}]",
+                "FPS: [avg {} max {} min {}]",
                 (1. / self.timeline.average_delta_time_last_second) as u32,
                 (1. / self.timeline.min_delta) as u32,
                 (1. / self.timeline.max_delta) as u32
@@ -60,23 +71,27 @@ impl VulkanContext {
             .find(|(family, _)| family.flags.contains(vk::QueueFlags::GRAPHICS))
             .unwrap();
 
-        let suboptimal = if let Some(future) = &mut self.prev_future {
+        let (suboptimal, out_of_date) = if let Some(future) = &mut self.prev_future {
             match executor::block_on(future) {
-                Ok(suboptimal) => suboptimal,
+                Ok(suboptimal) => (suboptimal, false),
                 Err(e) => {
                     dbg!(e);
-                    true
+                    (false, true)
                 }
             }
         } else {
-            false
+            (false, false)
         };
 
         self.prev_future = None;
 
         let queue = queues[0].clone();
 
-        if suboptimal {
+        if suboptimal || out_of_date {
+            let mut lock = queue.lock().unwrap();
+            lock.wait_idle().unwrap();
+            drop(lock);
+
             self.swapchain = Swapchain::from_old(self.swapchain.clone(), self.extent).unwrap();
 
             let post_process_image = crystal_vk::image::Image::new(
@@ -115,16 +130,15 @@ impl VulkanContext {
             SwapchainFuture::new(self.device.clone(), self.swapchain.clone()).unwrap();
 
         // blocks until aviability
-        let (image_index, suboptimal_or_out_of_date) = match swapchain_future.acquire_next_image() {
-            Ok(result) => result,
+        let (image_index, out_of_date) = match swapchain_future.acquire_next_image() {
+            Ok(result) => (result.0, false),
             Err(_e) => {
                 dbg!(_e);
-                executor::block_on(swapchain_future).unwrap();
-                return Ok(());
+                (0, true)
             }
         };
 
-        if suboptimal_or_out_of_date {
+        if out_of_date {
             executor::block_on(swapchain_future).unwrap();
             self.swapchain = Swapchain::new(queue.clone(), self.extent, true).unwrap();
 

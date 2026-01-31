@@ -1,7 +1,7 @@
 use std::{
     error::Error,
     pin::Pin,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex, RwLock, atomic::AtomicBool},
 };
 
 use crystal_vk::{
@@ -44,6 +44,10 @@ impl AttributeDescriptor for VertexTexture {
 }
 
 pub struct VulkanContext {
+    pub heartbeat: Arc<AtomicBool>,
+    pub stop_flag: Arc<AtomicBool>,
+    pub watcher: Option<std::thread::JoinHandle<()>>,
+
     pub device: Arc<Device>,
     pub queues: QueuePool,
     pub post_process_render_target: Arc<RenderTarget>,
@@ -67,6 +71,7 @@ pub struct VulkanContext {
         Option<Pin<Box<dyn Future<Output = Result<bool, Box<dyn Error>>> + Send + Sync>>>,
 
     pub timeline: timeline::Timeline,
+    pub first_frame: bool,
 
     pub extent: [u32; 2],
 }
