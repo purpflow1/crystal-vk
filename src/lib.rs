@@ -1,3 +1,6 @@
+//! # crystal-vk
+//! crystal-vk is a graphics wrapper around vulkan
+
 pub mod buffer;
 pub mod command;
 pub mod device;
