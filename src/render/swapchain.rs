@@ -140,8 +140,15 @@ impl Drop for Swapchain {
 impl Swapchain {
     pub fn from_old(old: Arc<Self>, extent: [u32; 2]) -> Result<Arc<Self>, Box<dyn Error>> {
         let device = old.present_queue.lock().unwrap().device.clone();
-        let swapchain_info = SwapchainInfo::new(device, extent, old.swapchain_info.vsync)?;
-        Self::new_in(old.present_queue.clone(), swapchain_info, old.swapchain_khr)
+        let swapchain_info = SwapchainInfo::new(device.clone(), extent, old.swapchain_info.vsync)?;
+        let self_in = Self::new_in(old.present_queue.clone(), swapchain_info, old.swapchain_khr)?;
+        device
+            .surface
+            .as_ref()
+            .unwrap()
+            .swapchain
+            .set(Some(self_in.clone()));
+        Ok(self_in)
     }
 
     pub fn new(
@@ -150,8 +157,18 @@ impl Swapchain {
         vsync: bool,
     ) -> Result<Arc<Self>, Box<dyn Error>> {
         let device = present_queue.lock().unwrap().device.clone();
-        let swapchain_info = SwapchainInfo::new(device, extent, vsync)?;
-        Self::new_in(present_queue, swapchain_info, vk::SwapchainKHR::null())
+        let swapchain_info = SwapchainInfo::new(device.clone(), extent, vsync)?;
+
+        device.surface.as_ref().unwrap().swapchain.set(None);
+
+        let self_in = Self::new_in(present_queue, swapchain_info, vk::SwapchainKHR::null())?;
+        device
+            .surface
+            .as_ref()
+            .unwrap()
+            .swapchain
+            .set(Some(self_in.clone()));
+        Ok(self_in)
     }
 
     fn new_in(
@@ -173,7 +190,7 @@ impl Swapchain {
             .unwrap();
 
         let mut swapchain_create_info = vk::SwapchainCreateInfoKHR::default()
-            .surface(device.surface.as_ref().unwrap().surface_khr)
+            .surface(device.surface.as_ref().unwrap().clone().surface_khr)
             .min_image_count(swapchain_info.image_count)
             .image_format(swapchain_info.surface_format.format)
             .image_color_space(swapchain_info.surface_format.color_space)

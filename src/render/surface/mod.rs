@@ -1,12 +1,14 @@
 pub mod window;
 
-use std::{error::Error, sync::Arc};
+use std::{cell::Cell, error::Error, sync::Arc};
 
-use crate::errors::DeviceError;
+use crate::{errors::DeviceError, render::swapchain::Swapchain};
 
 pub(crate) struct Surface {
     pub surface: ash::khr::surface::Instance,
     pub surface_khr: ash::vk::SurfaceKHR,
+    // lifetime depends on Surface
+    pub(crate) swapchain: Cell<Option<Arc<Swapchain>>>,
     _instance: Arc<crate::instance::Instance>,
 }
 
@@ -43,6 +45,7 @@ impl Surface {
 
         Ok(Arc::new(Self {
             _instance: instance,
+            swapchain: Cell::new(None),
             surface,
             surface_khr,
         }))
