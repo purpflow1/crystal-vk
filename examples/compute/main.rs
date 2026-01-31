@@ -71,7 +71,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let descriptor_pool = DescriptorPool::new(device.clone(), 2)?;
     let descriptor_set_layout = DescriptorSetLayout::new(device.clone(), layout_infos)?;
     let descriptor_set =
-        DescriptorSet::new(descriptor_pool.clone(), descriptor_set_layout.clone())?;
+        DescriptorSet::new(descriptor_pool.clone(), descriptor_set_layout.clone(), 1)?[0].clone();
 
     let mut reader = BufReader::new(File::open("examples/shaders/plain.comp")?);
     let mut source = String::new();

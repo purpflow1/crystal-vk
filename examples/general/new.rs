@@ -80,8 +80,10 @@ impl VulkanContext {
         let per_object_descriptor_set = DescriptorSet::new(
             descriptor_pool.clone(),
             per_object_descriptor_set_layout.clone(),
+            1,
         )
-        .unwrap();
+        .unwrap()[0]
+            .clone();
 
         let per_object_pipeline_layout = PipelineLayout::new(
             descriptor_pool.clone(),
@@ -331,8 +333,10 @@ impl VulkanContext {
         let post_process_descriptor_set = DescriptorSet::new(
             descriptor_pool.clone(),
             post_process_descriptor_set_layout.clone(),
+            1,
         )
-        .unwrap();
+        .unwrap()[0]
+            .clone();
 
         let buffer_resolution_uniform = Buffer::new(
             device.clone(),

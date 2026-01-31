@@ -115,25 +115,30 @@ impl DescriptorSet {
     pub fn new(
         descriptor_pool: Arc<Mutex<DescriptorPool>>,
         descriptor_set_layout: Arc<DescriptorSetLayout>,
-    ) -> Result<Arc<Mutex<Self>>, Box<dyn Error>> {
+        descriptor_count: u32,
+    ) -> Result<Vec<Arc<Mutex<Self>>>, Box<dyn Error>> {
         let lock = descriptor_pool.lock().unwrap();
 
-        let set_layout = [descriptor_set_layout.handle];
+        let set_layout = vec![descriptor_set_layout.handle; descriptor_count as usize];
 
         let alloc_info = vk::DescriptorSetAllocateInfo::default()
             .descriptor_pool(lock.handle)
             .set_layouts(&set_layout);
 
-        let descriptor_set =
-            unsafe { lock.device.handle.allocate_descriptor_sets(&alloc_info) }?[0];
+        let descriptor_sets = unsafe { lock.device.handle.allocate_descriptor_sets(&alloc_info) }?;
 
         drop(lock);
 
-        Ok(Arc::new(Mutex::new(Self {
-            handle: descriptor_set,
-            descriptor_set_layout,
-            descriptor_pool,
-            bindings: BTreeMap::new(),
-        })))
+        Ok(descriptor_sets
+            .iter()
+            .map(|&handle| {
+                Arc::new(Mutex::new(Self {
+                    handle,
+                    descriptor_set_layout: descriptor_set_layout.clone(),
+                    descriptor_pool: descriptor_pool.clone(),
+                    bindings: BTreeMap::new(),
+                }))
+            })
+            .collect())
     }
 }
