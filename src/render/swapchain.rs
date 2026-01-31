@@ -8,6 +8,7 @@ use ash::vk;
 use crate::{
     device::{Device, queue::Queue},
     image::Image,
+    sync::SwapchainFuture,
 };
 
 pub(crate) struct SwapchainInfo {
@@ -260,5 +261,10 @@ impl Swapchain {
             image_sequence: images,
             present_queue,
         }))
+    }
+
+    pub fn acquire_next_image(self: &Arc<Self>) -> Result<Box<SwapchainFuture>, Box<dyn Error>> {
+        let device = self.present_queue.lock().unwrap().device.clone();
+        SwapchainFuture::new(device, self.clone())
     }
 }

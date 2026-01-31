@@ -49,7 +49,7 @@ impl Future for SwapchainFuture {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if !self.submitted {
-            match self.acquire_next_image() {
+            match self.flush() {
                 Ok(_) => {
                     self.submitted = true;
                     self.waker = Some(cx.waker().clone());
@@ -89,7 +89,7 @@ impl GpuFuture for SwapchainFuture {
 }
 
 impl SwapchainFuture {
-    pub fn new(
+    pub(crate) fn new(
         device: Arc<Device>,
         swapchain: Arc<Swapchain>,
     ) -> Result<Box<Self>, Box<dyn Error>> {
@@ -110,7 +110,7 @@ impl SwapchainFuture {
         }))
     }
 
-    pub fn acquire_next_image(&mut self) -> Result<(u32, bool), Box<dyn Error>> {
+    pub fn flush(&mut self) -> Result<(u32, bool), Box<dyn Error>> {
         if self.submitted {
             return Ok((self.image_index, self.suboptimal));
         }

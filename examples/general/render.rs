@@ -4,7 +4,6 @@ use ash::vk::{self};
 use crystal_vk::{
     command::command_buffer_builder::CommandBufferBuilder,
     render::{RenderTarget, swapchain::Swapchain},
-    sync::SwapchainFuture,
 };
 use futures::executor;
 
@@ -125,12 +124,9 @@ impl VulkanContext {
             .unwrap();
         }
 
-        // TODO not safe
-        let mut swapchain_future =
-            SwapchainFuture::new(self.device.clone(), self.swapchain.clone()).unwrap();
+        let mut swapchain_future = self.swapchain.acquire_next_image().unwrap();
 
-        // blocks until aviability
-        let (image_index, out_of_date) = match swapchain_future.acquire_next_image() {
+        let (image_index, out_of_date) = match swapchain_future.flush() {
             Ok(result) => (result.0, false),
             Err(_e) => {
                 dbg!(_e);
