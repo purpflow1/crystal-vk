@@ -112,12 +112,8 @@ impl CommandBufferFuture {
     }
 
     pub fn present(&self) -> Result<bool, Box<dyn Error>> {
-        let wait_semaphores_vec: Vec<vk::Semaphore> = self
-            .signal_semaphores
-            .iter()
-            .cloned()
-            .map(|s| s.handle)
-            .collect();
+        let wait_semaphores_vec: Vec<vk::Semaphore> =
+            self.signal_semaphores.iter().map(|s| s.handle).collect();
         let swapchains = [self.swapchain.as_ref().unwrap().swapchain_khr];
         let image_indices = [self.image_index];
 
@@ -206,18 +202,10 @@ impl CommandBufferFuture {
 
         let command_buffers = [self.builder.handle];
 
-        let wait_semaphores_vec: Vec<vk::Semaphore> = self
-            .wait_semaphores
-            .iter()
-            .cloned()
-            .map(|s| s.handle)
-            .collect();
-        let signal_semaphores_vec: Vec<vk::Semaphore> = self
-            .signal_semaphores
-            .iter()
-            .cloned()
-            .map(|s| s.handle)
-            .collect();
+        let wait_semaphores_vec: Vec<vk::Semaphore> =
+            self.wait_semaphores.iter().map(|s| s.handle).collect();
+        let signal_semaphores_vec: Vec<vk::Semaphore> =
+            self.signal_semaphores.iter().map(|s| s.handle).collect();
 
         let wait_stages = vec![vk::PipelineStageFlags::TOP_OF_PIPE; wait_semaphores_vec.len()];
 

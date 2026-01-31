@@ -39,11 +39,13 @@ impl Queue {
         submit_info: &[vk::SubmitInfo],
         fence: vk::Fence,
     ) -> Result<(), Box<dyn Error>> {
-        Ok(unsafe {
+        unsafe {
             self.device
                 .handle
                 .queue_submit(self.handle, submit_info, fence)?
-        })
+        }
+
+        Ok(())
     }
 
     pub fn wait_idle(&mut self) -> Result<(), Box<dyn Error>> {

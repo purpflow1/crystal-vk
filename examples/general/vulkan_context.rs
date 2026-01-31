@@ -43,6 +43,8 @@ impl AttributeDescriptor for VertexTexture {
     }
 }
 
+type FutureType = dyn Future<Output = Result<bool, Box<dyn Error>>> + Send + Sync;
+
 pub struct VulkanContext {
     pub heartbeat: Arc<AtomicBool>,
     pub stop_flag: Arc<AtomicBool>,
@@ -67,8 +69,7 @@ pub struct VulkanContext {
     pub per_object_descriptor_set: Arc<Mutex<DescriptorSet>>,
     pub post_process_descriptor_set: Arc<Mutex<DescriptorSet>>,
 
-    pub prev_future:
-        Option<Pin<Box<dyn Future<Output = Result<bool, Box<dyn Error>>> + Send + Sync>>>,
+    pub prev_future: Option<Pin<Box<FutureType>>>,
 
     pub timeline: timeline::Timeline,
     pub first_frame: bool,
