@@ -1,0 +1,17 @@
+#version 460
+
+layout(binding = 0) readonly buffer SSBOin {
+    vec4 data[];
+} buffer_in;
+
+layout(binding = 1) buffer SSBOout {
+    vec4 data[];
+} buffer_out;
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    buffer_out.data[index] = buffer_in.data[index] * buffer_in.data[index];
+}

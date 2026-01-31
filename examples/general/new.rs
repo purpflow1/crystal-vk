@@ -5,7 +5,6 @@ use std::{
     ffi::CString,
     fs::File,
     io::{BufReader, Read},
-    time::SystemTime,
 };
 
 use ash::vk::{self, DescriptorType, ShaderStageFlags};
@@ -29,7 +28,7 @@ use crystal_vk::{
 };
 use winit::{dpi::LogicalSize, window::Window};
 
-use crate::vulkan_context::VulkanContext;
+use crate::{timeline::Timeline, vulkan_context::VulkanContext};
 
 impl VulkanContext {
     pub fn new(event_loop: &winit::event_loop::ActiveEventLoop) -> (Self, Window) {
@@ -438,8 +437,7 @@ impl VulkanContext {
                 per_object_descriptor_set: per_object_descriptor_set.clone(),
                 post_process_descriptor_set,
 
-                startup_time: SystemTime::now(),
-                last_frame: SystemTime::UNIX_EPOCH,
+                timeline: Timeline::new(),
 
                 prev_future: None,
 

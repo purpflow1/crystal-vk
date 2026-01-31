@@ -2,7 +2,6 @@ use std::{
     error::Error,
     pin::Pin,
     sync::{Arc, Mutex, RwLock},
-    time::SystemTime,
 };
 
 use crystal_vk::{
@@ -17,6 +16,8 @@ use crystal_vk::{
     },
     render::{RenderTarget, swapchain::Swapchain},
 };
+
+use crate::timeline;
 
 type Vec3 = [f32; 3];
 type Vec2 = [f32; 2];
@@ -62,11 +63,10 @@ pub struct VulkanContext {
     pub per_object_descriptor_set: Arc<Mutex<DescriptorSet>>,
     pub post_process_descriptor_set: Arc<Mutex<DescriptorSet>>,
 
-    pub startup_time: SystemTime,
-    pub last_frame: SystemTime,
-
     pub prev_future:
         Option<Pin<Box<dyn Future<Output = Result<bool, Box<dyn Error>>> + Send + Sync>>>,
+
+    pub timeline: timeline::Timeline,
 
     pub extent: [u32; 2],
 }

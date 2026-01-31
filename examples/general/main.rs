@@ -1,5 +1,6 @@
 mod new;
 mod render;
+mod timeline;
 mod vulkan_context;
 use vulkan_context::*;
 
@@ -43,7 +44,7 @@ impl ApplicationHandler for ContextWindow {
             }
             WindowEvent::Resized(size) => data.extent = [size.width, size.height],
             WindowEvent::RedrawRequested => {
-                data.render(window);
+                data.render(window).unwrap();
                 self.window.as_ref().unwrap().request_redraw();
             }
             _ => {

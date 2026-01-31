@@ -1,4 +1,4 @@
-use std::{f32::consts::PI, time::SystemTime};
+use std::{error::Error, f32::consts::PI};
 
 use ash::vk::{self};
 use crystal_vk::{
@@ -7,17 +7,25 @@ use crystal_vk::{
     sync::SwapchainFuture,
 };
 use futures::executor;
-use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 use crate::vulkan_context::VulkanContext;
 
 impl VulkanContext {
-    pub fn render(&mut self, window: &winit::window::Window) {
-        let delta_time = SystemTime::now().duration_since(self.last_frame).unwrap();
-        self.last_frame = SystemTime::now();
-        let aspect_ratio = self.extent[0] as f32 / self.extent[1] as f32;
+    /// # Safety
+    /// It's better to `unwrap()` here, so it's easier to debug
+    pub fn render(&mut self, window: &winit::window::Window) -> Result<(), Box<dyn Error>> {
+        self.timeline.frame_begin();
 
-        window.set_title(format!("FPS: {}", (1. / delta_time.as_secs_f32()) as u32).as_str());
+        let aspect_ratio = self.extent[0] as f32 / self.extent[1] as f32;
+        window.set_title(
+            format!(
+                "FPS: [avg {} min {} max {}]",
+                (1. / self.timeline.average_delta_time_last_second) as u32,
+                (1. / self.timeline.min_delta) as u32,
+                (1. / self.timeline.max_delta) as u32
+            )
+            .as_str(),
+        );
 
         let camera = glam::Mat4::look_at_lh(
             glam::Vec3::new(0., 0., -1.),
@@ -31,7 +39,7 @@ impl VulkanContext {
 
         let mut buffer = self.buffer_model.write().unwrap();
 
-        let seconds = self.startup_time.elapsed().unwrap().as_secs_f32();
+        let seconds = self.timeline.startup_time.elapsed().unwrap().as_secs_f32();
 
         let model = glam::Mat4::from_scale_rotation_translation(
             glam::Vec3::new(0.8, 0.8, 0.8),
@@ -112,7 +120,7 @@ impl VulkanContext {
             Err(_e) => {
                 dbg!(_e);
                 executor::block_on(swapchain_future).unwrap();
-                return;
+                return Ok(());
             }
         };
 
@@ -150,7 +158,7 @@ impl VulkanContext {
             )
             .unwrap();
 
-            return;
+            return Ok(());
         }
 
         let builder = CommandBufferBuilder::new(
@@ -209,5 +217,7 @@ impl VulkanContext {
         // command_buffer_future.flush().unwrap();
 
         self.prev_future = Some(Box::pin(command_buffer_future));
+
+        Ok(())
     }
 }
