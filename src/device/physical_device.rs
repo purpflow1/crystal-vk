@@ -2,10 +2,7 @@ use std::{error::Error, ffi::CStr, sync::Arc};
 
 use ash::vk;
 
-use crate::{
-    device::queue::QueueFamilyInfo, error, errors::DeviceError, instance::Instance,
-    render::surface::Surface,
-};
+use crate::{device::queue::QueueFamilyInfo, instance::Instance, render::surface::Surface};
 
 #[derive(Clone, Debug)]
 pub struct SwapChainSupportDetails {
@@ -50,54 +47,30 @@ impl PhysicalDevice {
             }
         }
 
-        error!(DeviceError, "cannot find suitable memory type")
+        Err("cannot find suitable memory type".into())
     }
 
     pub(crate) fn query_swap_chain_support(
         device: vk::PhysicalDevice,
         surface: Arc<Surface>,
     ) -> Result<SwapChainSupportDetails, Box<dyn Error>> {
-        let formats = match unsafe {
+        let formats = unsafe {
             surface
                 .surface
                 .get_physical_device_surface_formats(device, surface.surface_khr)
-        } {
-            Ok(data) => data,
-            Err(e) => {
-                return error!(
-                    DeviceError,
-                    "cannot get physical device surface formats: {e}"
-                );
-            }
-        };
+        }?;
 
-        let capabilities = match unsafe {
+        let capabilities = unsafe {
             surface
                 .surface
                 .get_physical_device_surface_capabilities(device, surface.surface_khr)
-        } {
-            Ok(data) => data,
-            Err(e) => {
-                return error!(
-                    DeviceError,
-                    "cannot get physical device surface capabilities: {e}"
-                );
-            }
-        };
+        }?;
 
-        let present_modes = match unsafe {
+        let present_modes = unsafe {
             surface
                 .surface
                 .get_physical_device_surface_present_modes(device, surface.surface_khr)
-        } {
-            Ok(data) => data,
-            Err(e) => {
-                return error!(
-                    DeviceError,
-                    "cannot get physical device surface present modes: {e}"
-                );
-            }
-        };
+        }?;
 
         Ok(SwapChainSupportDetails {
             formats,
@@ -223,18 +196,11 @@ impl PhysicalDevice {
 
         let mut supported_extensions = Vec::with_capacity(extensions.len());
 
-        let extension_props = match unsafe {
+        let extension_props = unsafe {
             self.instance
                 .handle
                 .enumerate_device_extension_properties(self.handle)
-        } {
-            Ok(props) => props,
-            Err(e) => {
-                return Err(Box::new(DeviceError::new(format!(
-                    "cannot enumerate device extension properties: {e}"
-                ))));
-            }
-        };
+        }?;
 
         let device_supported_extensions: Vec<&std::ffi::CStr> = extension_props
             .iter()
@@ -285,22 +251,17 @@ impl PhysicalDevice {
             .enabled_features(&features)
             .enabled_extension_names(&extension_names);
 
-        match unsafe {
-            self.instance
-                .handle
-                .create_device(self.handle, &device_create_info, None)
-        } {
-            Err(e) => Err(Box::new(DeviceError::new(format!(
-                "cannot create logical device: {e}"
-            )))),
-            Ok(device) => Ok((
-                device,
-                extensions
-                    .iter()
-                    .map(|ext| ext.to_str().unwrap().to_string())
-                    .collect(),
-            )),
-        }
+        Ok((
+            unsafe {
+                self.instance
+                    .handle
+                    .create_device(self.handle, &device_create_info, None)
+            }?,
+            extensions
+                .iter()
+                .map(|ext| ext.to_str().unwrap().to_string())
+                .collect(),
+        ))
     }
 
     pub(crate) fn find_depth_format(

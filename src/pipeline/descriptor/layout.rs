@@ -7,8 +7,6 @@ use ash::vk;
 
 use crate::{
     device::Device,
-    error,
-    errors::DescriptorError,
     pipeline::descriptor::{DescriptorPool, descriptor_set_layout::DescriptorSetLayout},
     traits::CommandBufferBinding,
 };
@@ -52,13 +50,7 @@ impl PipelineLayout {
 
         let device = lock.device.clone();
 
-        let pipeline_layout =
-            match unsafe { device.handle.create_pipeline_layout(&create_info, None) } {
-                Ok(layout) => layout,
-                Err(e) => {
-                    return error!(DescriptorError, "cannot create pipeline layout: {e}");
-                }
-            };
+        let pipeline_layout = unsafe { device.handle.create_pipeline_layout(&create_info, None) }?;
 
         drop(lock);
 

@@ -2,7 +2,7 @@ pub mod window;
 
 use std::{cell::Cell, error::Error, sync::Arc};
 
-use crate::{errors::DeviceError, render::swapchain::Swapchain};
+use crate::render::swapchain::Swapchain;
 
 pub(crate) struct Surface {
     pub surface: ash::khr::surface::Instance,
@@ -26,9 +26,7 @@ impl Surface {
         let ws_handlers = if let Some(h) = instance.ws_handlers {
             h
         } else {
-            return Err(Box::new(DeviceError::new(
-                "cannot create surface: no window system handlers".to_string(),
-            )));
+            return Err("cannot create surface: no window system handlers".into());
         };
 
         let surface = ash::khr::surface::Instance::new(&instance.entry, &instance.handle);

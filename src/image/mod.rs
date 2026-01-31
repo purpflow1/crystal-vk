@@ -6,8 +6,6 @@ use ash::vk;
 
 use crate::{
     device::Device,
-    error,
-    errors::{DeviceError, ImageError},
     traits::{CommandBufferBinding, DescriptorSetBinding},
 };
 
@@ -87,10 +85,11 @@ impl Image {
             & vk::FormatFeatureFlags::SAMPLED_IMAGE_FILTER_LINEAR
             != vk::FormatFeatureFlags::SAMPLED_IMAGE_FILTER_LINEAR
         {
-            return error!(
-                ImageError,
-                "no suitable device for image linear filtering with format: {format:?}"
-            );
+            return Err(format!(
+                "no suitable device for image linear filtering with format: {:?}",
+                format
+            )
+            .into());
         }
 
         let create_info = ImageCreateInfo {
@@ -146,7 +145,7 @@ impl Image {
         let depth_format = match device.physical_device.find_depth_format(tiling, features) {
             Some(format) => format,
             None => {
-                return error!(DeviceError, "cannot find supported depth format");
+                return Err("cannot find supported depth format".into());
             }
         };
 
@@ -223,12 +222,7 @@ impl Image {
             .samples(image_create_info.samples)
             .push_next(&mut compression_control);
 
-        let image = match unsafe { device.handle.create_image(&create_info, None) } {
-            Ok(image) => image,
-            Err(e) => {
-                return error!(DeviceError, "cannot create image: {e}");
-            }
-        };
+        let image = unsafe { device.handle.create_image(&create_info, None) }?;
 
         let memory_requirements = unsafe { device.handle.get_image_memory_requirements(image) };
 
@@ -239,20 +233,9 @@ impl Image {
                 memory_requirements.memory_type_bits,
             )?);
 
-        let image_memory =
-            match unsafe { device.handle.allocate_memory(&memory_allocate_info, None) } {
-                Ok(mem) => mem,
-                Err(e) => {
-                    return error!(DeviceError, "cannot allocate image memory: {e:?}");
-                }
-            };
+        let image_memory = unsafe { device.handle.allocate_memory(&memory_allocate_info, None) }?;
 
-        match unsafe { device.handle.bind_image_memory(image, image_memory, 0) } {
-            Ok(_) => (),
-            Err(e) => {
-                return error!(DeviceError, "cannot bind image memory: {e}");
-            }
-        };
+        unsafe { device.handle.bind_image_memory(image, image_memory, 0) }?;
 
         let image_view_create_info = vk::ImageViewCreateInfo::default()
             .image(image)
@@ -267,16 +250,11 @@ impl Image {
                     .layer_count(1),
             );
 
-        let image_view = match unsafe {
+        let image_view = unsafe {
             device
                 .handle
                 .create_image_view(&image_view_create_info, None)
-        } {
-            Ok(image_view) => image_view,
-            Err(e) => {
-                return error!(DeviceError, "cannot create image view: {e}");
-            }
-        };
+        }?;
 
         Ok(Arc::new(Self {
             image_view,

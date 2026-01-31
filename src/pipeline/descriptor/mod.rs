@@ -8,7 +8,7 @@ use std::{
 
 use ash::vk;
 
-use crate::{device::Device, error, errors::DeviceError};
+use crate::device::Device;
 
 pub struct DescriptorPool {
     pub(crate) handle: vk::DescriptorPool,
@@ -29,16 +29,19 @@ impl Drop for DescriptorPool {
 }
 
 impl DescriptorPool {
-    pub fn new(device: Arc<Device>) -> Result<Arc<Mutex<Self>>, Box<dyn Error>> {
+    pub fn new(
+        device: Arc<Device>,
+        descriptor_count: u32,
+    ) -> Result<Arc<Mutex<Self>>, Box<dyn Error>> {
         let pool_sizes = [
             vk::DescriptorPoolSize::default()
-                .descriptor_count(64)
+                .descriptor_count(descriptor_count)
                 .ty(vk::DescriptorType::UNIFORM_BUFFER),
             vk::DescriptorPoolSize::default()
-                .descriptor_count(64)
+                .descriptor_count(descriptor_count)
                 .ty(vk::DescriptorType::STORAGE_BUFFER),
             vk::DescriptorPoolSize::default()
-                .descriptor_count(64)
+                .descriptor_count(descriptor_count)
                 .ty(vk::DescriptorType::SAMPLED_IMAGE),
         ];
 
@@ -50,13 +53,7 @@ impl DescriptorPool {
                     & vk::DescriptorPoolCreateFlags::FREE_DESCRIPTOR_SET,
             );
 
-        let descriptor_pool =
-            match unsafe { device.handle.create_descriptor_pool(&pool_info, None) } {
-                Ok(descriptor_pool) => descriptor_pool,
-                Err(e) => {
-                    return error!(DeviceError, "cannot create descriptor pool: {e}");
-                }
-            };
+        let descriptor_pool = unsafe { device.handle.create_descriptor_pool(&pool_info, None) }?;
 
         let descriptor_pool = Arc::new(Mutex::new(Self {
             handle: descriptor_pool,

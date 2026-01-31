@@ -5,7 +5,7 @@ use std::{
 
 use ash::vk;
 
-use crate::{error, errors::DeviceError, image::Image, render::render_pass::RenderPass};
+use crate::{image::Image, render::render_pass::RenderPass};
 
 pub(crate) struct FramebufferPool {
     handles: Vec<vk::Framebuffer>,
@@ -75,15 +75,12 @@ impl FramebufferPool {
                 .height(image.info.extent[1])
                 .layers(1);
 
-            match unsafe {
+            framebuffers.push(unsafe {
                 render_pass
                     .device
                     .handle
                     .create_framebuffer(&create_info, None)
-            } {
-                Ok(framebuffer) => framebuffers.push(framebuffer),
-                Err(e) => return error!(DeviceError, "cannot create framebuffer: {e}"),
-            }
+            }?);
         }
 
         Ok(Arc::new(RwLock::new(FramebufferPool {

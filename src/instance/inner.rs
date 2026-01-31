@@ -2,7 +2,7 @@ use std::error::Error;
 
 use ash::vk;
 
-use crate::{errors::DeviceError, render::surface::window::WindowSystemRawHandlers};
+use crate::render::surface::window::WindowSystemRawHandlers;
 
 pub(super) fn new_in(
     entry: &ash::Entry,
@@ -18,14 +18,7 @@ pub(super) fn new_in(
     let display_extensions;
 
     if let Some(ws_handlers) = ws_handlers {
-        display_extensions = match ash_window::enumerate_required_extensions(ws_handlers.display) {
-            Ok(ext) => ext,
-            Err(e) => {
-                return Err(Box::new(DeviceError::new(format!(
-                    "cannot enumerate display extensions: {e}"
-                ))));
-            }
-        };
+        display_extensions = ash_window::enumerate_required_extensions(ws_handlers.display)?;
 
         display_extensions
             .iter()
@@ -84,14 +77,6 @@ pub(super) fn new_in(
         }
     };
 
-    let instance = match unsafe { entry.create_instance(&create_info, None) } {
-        Err(e) => {
-            return Err(Box::new(DeviceError::new(format!(
-                "cannot create vulkan instance: {e}"
-            ))));
-        }
-        Ok(instance) => instance,
-    };
-
+    let instance = unsafe { entry.create_instance(&create_info, None) }?;
     Ok(instance)
 }

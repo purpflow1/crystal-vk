@@ -8,8 +8,6 @@ use ash::vk;
 
 use crate::{
     buffer::Buffer,
-    error,
-    errors::DescriptorError,
     image::{Image, sampler::Sampler},
     pipeline::descriptor::{DescriptorPool, descriptor_set_layout::DescriptorSetLayout},
     traits::{CommandBufferBinding, DescriptorSetBinding},
@@ -47,7 +45,7 @@ impl DescriptorSet {
         let typ = if let Some(alloc_info) = self.descriptor_set_layout.alloc_info.get(&binding) {
             alloc_info.typ
         } else {
-            return error!(DescriptorError, "no such binding");
+            return Err(format!("binding not fount: {}", binding).into());
         };
 
         let descriptor_write = vk::WriteDescriptorSet::default()
@@ -84,7 +82,7 @@ impl DescriptorSet {
         let typ = if let Some(alloc_info) = self.descriptor_set_layout.alloc_info.get(&binding) {
             alloc_info.typ
         } else {
-            return error!(DescriptorError, "no such binding");
+            return Err(format!("binding not fount: {}", binding).into());
         };
 
         let buffer_info = [vk::DescriptorBufferInfo::default()
@@ -111,6 +109,9 @@ impl DescriptorSet {
         Ok(())
     }
 
+    /// # Safety
+    /// Can return VK_ERROR_OUT_OF_POOL_MEMORY on some GPU's when descriptor sets
+    /// overflows allocated descriptor pool
     pub fn new(
         descriptor_pool: Arc<Mutex<DescriptorPool>>,
         descriptor_set_layout: Arc<DescriptorSetLayout>,
@@ -124,12 +125,7 @@ impl DescriptorSet {
             .set_layouts(&set_layout);
 
         let descriptor_set =
-            match unsafe { lock.device.handle.allocate_descriptor_sets(&alloc_info) } {
-                Ok(descriptor_sets) => descriptor_sets[0],
-                Err(e) => {
-                    return error!(DescriptorError, "cannot allocate descriptor sets: {e}");
-                }
-            };
+            unsafe { lock.device.handle.allocate_descriptor_sets(&alloc_info) }?[0];
 
         drop(lock);
 

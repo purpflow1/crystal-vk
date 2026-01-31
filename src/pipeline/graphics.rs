@@ -3,8 +3,6 @@ use std::{error::Error, iter::zip, marker::PhantomData, sync::Arc};
 use ash::vk;
 
 use crate::{
-    error,
-    errors::PipelineError,
     pipeline::{
         Pipeline, PipelineInfo, attribute::AttributeDescriptor, descriptor::layout::PipelineLayout,
         shader::Shader,
@@ -42,7 +40,7 @@ impl<T: AttributeDescriptor> Pipeline<T> {
         mut pipeline_info: GraphicsPipelineInfo,
     ) -> Result<Arc<Pipeline<T>>, Box<dyn Error>> {
         if shaders.is_empty() {
-            return error!(PipelineError, "no shaders specified");
+            return Err("no shaders specified".into());
         }
 
         let mut stages = Vec::new();
@@ -190,10 +188,7 @@ impl<T: AttributeDescriptor> Pipeline<T> {
                 _render_target: Some(render_target),
                 _tp: PhantomData,
             })),
-            Err(es) => {
-                let e = es.1;
-                error!(PipelineError, "cannot create graphics pipeline: {e}")
-            }
+            Err(e) => Err(e.1.into()),
         }
     }
 }

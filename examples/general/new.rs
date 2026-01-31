@@ -54,7 +54,7 @@ impl VulkanContext {
         let swapchain = Swapchain::new(present_queue, [600, 600], true).unwrap();
         let swapchain_images = swapchain.image_sequence.clone();
 
-        let descriptor_pool = DescriptorPool::new(device.clone()).unwrap();
+        let descriptor_pool = DescriptorPool::new(device.clone(), 3).unwrap();
 
         let mut layout_alloc_infos = BTreeMap::new();
         layout_alloc_infos.insert(

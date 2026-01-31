@@ -7,8 +7,6 @@ use ash::vk;
 
 use crate::{
     device::{Device, queue::Queue},
-    error,
-    errors::{DeviceError, SwapChainError},
     image::Image,
 };
 
@@ -41,7 +39,7 @@ impl SwapchainInfo {
             {
                 Some(info) => info.index,
                 None => {
-                    return error!(DeviceError, "device does not support graphics queue");
+                    return Err("device does not support graphics queue".into());
                 }
             },
             match device
@@ -53,7 +51,7 @@ impl SwapchainInfo {
             {
                 Some(info) => info.index,
                 None => {
-                    return error!(DeviceError, "device does not support presentation");
+                    return Err("device does not support presentation".into());
                 }
             },
         ];
@@ -61,7 +59,7 @@ impl SwapchainInfo {
         let swap_chain_support_details =
             match device.physical_device.swap_chain_support_details.clone() {
                 Some(s) => s,
-                None => return error!(SwapChainError, "surface haven't passed into device"),
+                None => return Err("device has been created without surface support".into()),
             };
 
         let swap_surface_format = match swap_chain_support_details.formats.iter().find(|format| {
@@ -70,7 +68,7 @@ impl SwapchainInfo {
         }) {
             Some(&format) => format,
             None => {
-                return error!(SwapChainError, "not found required swap surface format");
+                return Err("not found required swap surface format".into());
             }
         };
 
@@ -219,20 +217,9 @@ impl Swapchain {
             swapchain_create_info = swapchain_create_info.push_next(&mut compression_control);
         }
 
-        let swapchain_khr =
-            match unsafe { swapchain.create_swapchain(&swapchain_create_info, None) } {
-                Ok(swapchain_khr) => swapchain_khr,
-                Err(e) => {
-                    return error!(SwapChainError, "cannot create swapchain: {e}");
-                }
-            };
+        let swapchain_khr = unsafe { swapchain.create_swapchain(&swapchain_create_info, None) }?;
 
-        let swapchain_images = match unsafe { swapchain.get_swapchain_images(swapchain_khr) } {
-            Ok(images) => images,
-            Err(e) => {
-                return error!(SwapChainError, "cannot get swapchain images: {e}");
-            }
-        };
+        let swapchain_images = unsafe { swapchain.get_swapchain_images(swapchain_khr) }?;
 
         let mut images = vec![];
 
@@ -256,12 +243,7 @@ impl Swapchain {
                         .layer_count(1),
                 );
 
-            let image_view = match unsafe { device.handle.create_image_view(&create_info, None) } {
-                Ok(image_view) => image_view,
-                Err(e) => {
-                    return error!(DeviceError, "cannot create image view: {e}");
-                }
-            };
+            let image_view = unsafe { device.handle.create_image_view(&create_info, None) }?;
 
             images.push(Image::new_swapchain(
                 device.clone(),

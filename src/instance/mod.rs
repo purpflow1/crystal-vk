@@ -6,7 +6,7 @@ use std::{error::Error, sync::Arc};
 
 use ash::vk;
 
-use crate::{errors::DeviceError, render::surface::window::WindowSystemRawHandlers};
+use crate::render::surface::window::WindowSystemRawHandlers;
 
 pub(crate) struct Instance {
     pub handle: ash::Instance,
@@ -37,19 +37,11 @@ impl Instance {
     pub unsafe fn enumerate_physical_devices(
         &self,
     ) -> Result<Vec<vk::PhysicalDevice>, Box<dyn Error>> {
-        match unsafe { self.handle.enumerate_physical_devices() } {
-            Ok(devices) => Ok(devices),
-            Err(e) => Err(Box::new(DeviceError::new(format!(
-                "cannot enumerate physical devices: {e}"
-            )))),
-        }
+        Ok(unsafe { self.handle.enumerate_physical_devices() }?)
     }
 
     pub fn new(ws_handlers: Option<WindowSystemRawHandlers>) -> Result<Arc<Self>, Box<dyn Error>> {
-        let entry = match unsafe { ash::Entry::load() } {
-            Ok(entry) => entry,
-            Err(e) => return Err(Box::new(DeviceError::new(format!("{e}")))),
-        };
+        let entry = unsafe { ash::Entry::load() }?;
 
         let instance = inner::new_in(&entry, ws_handlers)?;
 

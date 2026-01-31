@@ -6,7 +6,7 @@ use std::{
 
 use ash::vk;
 
-use crate::{device::Device, error, errors::QueueError};
+use crate::device::Device;
 
 pub type QueuePool = BTreeMap<QueueFamilyInfo, Vec<Arc<Mutex<Queue>>>>;
 
@@ -39,23 +39,15 @@ impl Queue {
         submit_info: &[vk::SubmitInfo],
         fence: vk::Fence,
     ) -> Result<(), Box<dyn Error>> {
-        match unsafe {
+        Ok(unsafe {
             self.device
                 .handle
-                .queue_submit(self.handle, submit_info, fence)
-        } {
-            Ok(()) => Ok(()),
-            Err(e) => error!(QueueError, "cannot submit queue: {e}"),
-        }
+                .queue_submit(self.handle, submit_info, fence)?
+        })
     }
 
     pub fn wait_idle(&mut self) -> Result<(), Box<dyn Error>> {
-        match unsafe { self.device.handle.queue_wait_idle(self.handle) } {
-            Err(e) => Err(Box::new(QueueError::new(format!(
-                "queue wait idle error: {e}"
-            )))),
-            Ok(()) => Ok(()),
-        }
+        Ok(unsafe { self.device.handle.queue_wait_idle(self.handle) }?)
     }
 
     pub fn instantiate(device: Arc<Device>) -> QueuePool {

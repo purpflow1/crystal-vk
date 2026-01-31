@@ -2,9 +2,7 @@ use std::{error::Error, sync::Arc};
 
 use ash::vk;
 
-use crate::{
-    device::Device, error, errors::ImageError, image::Image, traits::DescriptorSetBinding,
-};
+use crate::{device::Device, image::Image, traits::DescriptorSetBinding};
 
 pub struct SamplerInfo {
     pub filter: vk::Filter,
@@ -50,14 +48,9 @@ impl Sampler {
             .min_lod(0.)
             .max_lod(info.max_lod);
 
-        match unsafe { device.handle.create_sampler(&sampler_info, None) } {
-            Ok(sampler) => Ok(Arc::new(Self {
-                handle: sampler,
-                device,
-            })),
-            Err(e) => {
-                error!(ImageError, "cannot create sampler: {e}")
-            }
-        }
+        Ok(Arc::new(Self {
+            handle: unsafe { device.handle.create_sampler(&sampler_info, None) }?,
+            device,
+        }))
     }
 }

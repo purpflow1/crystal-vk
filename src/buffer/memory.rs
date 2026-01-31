@@ -2,7 +2,7 @@ use std::{error::Error, ops::Range, sync::Arc};
 
 use ash::vk;
 
-use crate::{device::Device, error, errors::MemoryError};
+use crate::device::Device;
 
 #[derive(Clone, Copy)]
 pub(super) struct BufferInfo {
@@ -37,12 +37,7 @@ impl BufferData {
             .usage(info.usage)
             .sharing_mode(info.sharing_mode);
 
-        let buffer = match unsafe { device.handle.create_buffer(&create_info, None) } {
-            Ok(buffer) => buffer,
-            Err(e) => {
-                return error!(MemoryError, "cannot create buffer: {e}");
-            }
-        };
+        let buffer = unsafe { device.handle.create_buffer(&create_info, None) }?;
 
         let memory_requirements = unsafe { device.handle.get_buffer_memory_requirements(buffer) };
 
@@ -54,31 +49,15 @@ impl BufferData {
             .allocation_size(memory_requirements.size)
             .memory_type_index(memory_type_index);
 
-        let device_memory =
-            match unsafe { device.handle.allocate_memory(&memory_allocate_info, None) } {
-                Ok(device_memory) => device_memory,
-                Err(e) => {
-                    return error!(MemoryError, "cannot allocate device memory: {e}");
-                }
-            };
+        let device_memory = unsafe { device.handle.allocate_memory(&memory_allocate_info, None) }?;
 
-        match unsafe { device.handle.bind_buffer_memory(buffer, device_memory, 0) } {
-            Ok(_) => (),
-            Err(e) => {
-                return error!(MemoryError, "cannot bind buffer memory: {e}");
-            }
-        };
+        unsafe { device.handle.bind_buffer_memory(buffer, device_memory, 0) }?;
 
-        let mapped = match unsafe {
+        let mapped = unsafe {
             device
                 .handle
                 .map_memory(device_memory, 0, info.size, vk::MemoryMapFlags::empty())
-        } {
-            Ok(ptr) => ptr as *mut u8,
-            Err(e) => {
-                return error!(MemoryError, "cannot map memory: {e}");
-            }
-        };
+        }? as *mut u8;
 
         Ok(Self {
             handle: buffer,

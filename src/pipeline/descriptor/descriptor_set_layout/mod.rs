@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, error::Error, sync::Arc};
 
 use ash::vk;
 
-use crate::{device::Device, error, errors::DescriptorError};
+use crate::device::Device;
 
 #[derive(Clone)]
 pub struct LayoutAllocInfo {
@@ -51,14 +51,11 @@ impl DescriptorSetLayout {
 
         let create_info = vk::DescriptorSetLayoutCreateInfo::default().bindings(&bindings);
 
-        let handle = match unsafe {
+        let handle = unsafe {
             device
                 .handle
                 .create_descriptor_set_layout(&create_info, None)
-        } {
-            Ok(handle) => handle,
-            Err(e) => return error!(DescriptorError, "cannot create descriptor set layout: {e}"),
-        };
+        }?;
 
         Ok(Arc::new(Self {
             handle,

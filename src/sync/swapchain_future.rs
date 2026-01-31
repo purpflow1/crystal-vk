@@ -10,8 +10,6 @@ use ash::vk;
 
 use crate::{
     device::Device,
-    error,
-    errors::{SwapchainOutOfDate, SyncError},
     render::swapchain::Swapchain,
     sync::{GpuFuture, Semaphore},
 };
@@ -127,10 +125,7 @@ impl SwapchainFuture {
         } {
             Ok(result) => result,
             Err(vk::Result::SUBOPTIMAL_KHR) => (self.image_index, true),
-            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
-                return error!(SwapchainOutOfDate, "out of date");
-            }
-            Err(e) => return error!(SyncError, "cannot acquire_next_image: {e}"),
+            Err(e) => return Err(e.into()),
         };
 
         self.image_index = image_index;
@@ -158,7 +153,7 @@ impl SwapchainFuture {
                 Ok(true)
             }
             Ok(false) | Err(vk::Result::NOT_READY) => Ok(false),
-            Err(e) => error!(SyncError, "cannot get fence status: {e}"),
+            Err(e) => Err(e.into()),
         }
     }
 }

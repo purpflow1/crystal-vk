@@ -8,11 +8,7 @@ use std::{
 
 use ash::vk;
 
-use crate::{
-    device::{Device, queue::QueuePool},
-    error,
-    errors::CommandError,
-};
+use crate::device::{Device, queue::QueuePool};
 
 /// Allocator per thread
 pub struct CommandBufferAllocator {
@@ -45,12 +41,7 @@ impl CommandBufferAllocator {
             device = Some(queue.device.clone());
 
             let command_pool =
-                match unsafe { queue.device.handle.create_command_pool(&create_info, None) } {
-                    Ok(command_pool) => command_pool,
-                    Err(e) => {
-                        return error!(CommandError, "cannot create command pool: {e}");
-                    }
-                };
+                unsafe { queue.device.handle.create_command_pool(&create_info, None) }?;
 
             pools.insert(family_info.index, Arc::new(Mutex::new(command_pool)));
         }

@@ -9,8 +9,6 @@ use crate::{
     buffer::Buffer,
     command::CommandBufferAllocator,
     device::queue::Queue,
-    error,
-    errors::CommandError,
     image::Image,
     pipeline::{
         Pipeline,
@@ -42,17 +40,12 @@ impl CommandBufferBuilder {
         self: Box<Self>,
         queue: Arc<Mutex<Queue>>,
     ) -> Result<Box<CommandBufferFuture>, Box<dyn Error>> {
-        match unsafe {
+        unsafe {
             self.command_buffer_allocator
                 .device
                 .handle
                 .end_command_buffer(self.handle)
-        } {
-            Ok(()) => (),
-            Err(e) => {
-                return error!(CommandError, "cannot build command buffer: {e}");
-            }
-        }
+        }?;
 
         CommandBufferFuture::new(self, queue)
     }
@@ -74,31 +67,21 @@ impl CommandBufferBuilder {
             .command_pool(*command_pool_lock)
             .command_buffer_count(1);
 
-        let command_buffer = match unsafe {
+        let command_buffer = unsafe {
             command_buffer_allocator
                 .device
                 .handle
                 .allocate_command_buffers(&alloc_info)
-        } {
-            Ok(buffers) => buffers[0],
-            Err(e) => {
-                return error!(CommandError, "cannot allocate command buffer: {e}");
-            }
-        };
+        }?[0];
 
         let begin_info = vk::CommandBufferBeginInfo::default().flags(flags);
 
-        match unsafe {
+        unsafe {
             command_buffer_allocator
                 .device
                 .handle
                 .begin_command_buffer(command_buffer, &begin_info)
-        } {
-            Ok(_) => (),
-            Err(e) => {
-                return error!(CommandError, "cannot begin command buffer: {e}");
-            }
-        }
+        }?;
 
         Ok(Box::new(Self {
             handle: command_buffer,
@@ -112,7 +95,7 @@ impl CommandBufferBuilder {
         mut self: Box<Self>,
         image: Arc<Image>,
         layout_new: vk::ImageLayout,
-    ) -> Result<Box<Self>, Box<CommandError>> {
+    ) -> Result<Box<Self>, Box<dyn Error>> {
         self.bindings.push(image.clone());
 
         let layout_old = image.info.layout.get();
@@ -151,9 +134,8 @@ impl CommandBufferBuilder {
             src_stage = vk::PipelineStageFlags::TRANSFER;
             dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
         } else {
-            return error!(
-                CommandError,
-                "unsupported layout transition: {layout_old:?} -> {layout_new:?}"
+            return Err(
+                format!("unsupported layout transition: {layout_old:?} -> {layout_new:?}").into(),
             );
         }
 
@@ -328,13 +310,13 @@ impl CommandBufferBuilder {
         mut self: Box<Self>,
         image: Arc<Image>,
         buffer: Arc<RwLock<Buffer<T>>>,
-    ) -> Result<Box<Self>, Box<CommandError>> {
+    ) -> Result<Box<Self>, Box<dyn Error>> {
         self.bindings.push(image.clone());
         self.bindings.push(buffer.clone());
         let layout = image.info.layout.get();
 
         if layout != vk::ImageLayout::TRANSFER_DST_OPTIMAL {
-            return error!(CommandError, "staging is not supported with {layout:?}");
+            return Err(format!("staging is not supported with {layout:?}").into());
         }
 
         let region = vk::BufferImageCopy::default()

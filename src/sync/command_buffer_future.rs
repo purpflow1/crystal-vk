@@ -11,8 +11,6 @@ use ash::vk;
 use crate::{
     command::command_buffer_builder::CommandBufferBuilder,
     device::{Device, queue::Queue},
-    error,
-    errors::{QueueError, SyncError},
     render::swapchain::Swapchain,
     sync::{GpuFuture, Semaphore},
 };
@@ -113,7 +111,7 @@ impl CommandBufferFuture {
         Ok(self)
     }
 
-    pub fn present(&self) -> Result<bool, Box<QueueError>> {
+    pub fn present(&self) -> Result<bool, Box<dyn Error>> {
         let wait_semaphores_vec: Vec<vk::Semaphore> = self
             .signal_semaphores
             .iter()
@@ -136,16 +134,13 @@ impl CommandBufferFuture {
             .lock()
             .unwrap();
 
-        let suboptimal = match unsafe {
+        let suboptimal = unsafe {
             self.swapchain
                 .as_ref()
                 .unwrap()
                 .swapchain
                 .queue_present(queue_lock.handle, &present_info)
-        } {
-            Ok(suboptimal) => suboptimal,
-            Err(e) => return error!(QueueError, "cannot queue_present: {e}"),
-        };
+        }?;
 
         Ok(suboptimal)
     }
@@ -157,10 +152,7 @@ impl CommandBufferFuture {
         let device = bulder.command_buffer_allocator.device.clone();
 
         let fence_create_info = vk::FenceCreateInfo::default();
-        let fence = match unsafe { device.handle.create_fence(&fence_create_info, None) } {
-            Ok(fence) => fence,
-            Err(e) => return error!(SyncError, "cannot create fence: {e}"),
-        };
+        let fence = unsafe { device.handle.create_fence(&fence_create_info, None) }?;
 
         let mut signal_semaphores = VecDeque::new();
         let signal_semaphore = Semaphore::new(device.clone())?;
@@ -203,7 +195,7 @@ impl CommandBufferFuture {
                 Ok(true)
             }
             Ok(false) | Err(vk::Result::NOT_READY) => Ok(false),
-            Err(e) => error!(SyncError, "cannot get fence status: {e}"),
+            Err(e) => Err(e.into()),
         }
     }
 
@@ -249,13 +241,9 @@ impl CommandBufferFuture {
 
     pub fn wait(&mut self) -> Result<(), Box<dyn Error>> {
         unsafe {
-            if let Err(e) = self
-                .device
+            self.device
                 .handle
-                .wait_for_fences(&[self.fence], true, u64::MAX)
-            {
-                return error!(SyncError, "error waiting for fences: {e}");
-            }
+                .wait_for_fences(&[self.fence], true, u64::MAX)?
         }
         Ok(())
     }

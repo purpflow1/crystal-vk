@@ -9,8 +9,6 @@ use ash::vk::{
 use ash::ext::debug_utils;
 use ash::{Entry, Instance};
 
-use crate::errors::DebugError;
-
 pub(crate) struct DebugUtilsMessanger {
     _debug_utils: debug_utils::Instance,
     _debug_utils_messanger: vk::DebugUtilsMessengerEXT,
@@ -41,6 +39,9 @@ unsafe extern "system" fn debug_callback(
                 #[allow(clippy::panic)]
                 {
                     println!("[FATAL] {message}");
+                    let backtrace = std::backtrace::Backtrace::capture();
+                    println!("BACKTRACE:\n{}", backtrace);
+                    std::process::exit(1)
                 };
             } else if message_severity.contains(DebugUtilsMessageSeverityFlagsEXT::INFO) {
                 println!("[VALIDATION INFO] {message}");
@@ -75,16 +76,8 @@ pub(crate) fn create_debug_utils_messanger(
         )
         .pfn_user_callback(Some(debug_callback));
 
-    let debug_utils_messanger = match unsafe {
-        debug_utils.create_debug_utils_messenger(&debug_messanger_create_info, None)
-    } {
-        Ok(messanger) => messanger,
-        Err(e) => {
-            return Err(Box::new(DebugError::new(format!(
-                "cannot create vulkan debug messanger: {e}"
-            ))));
-        }
-    };
+    let debug_utils_messanger =
+        unsafe { debug_utils.create_debug_utils_messenger(&debug_messanger_create_info, None) }?;
 
     Ok(DebugUtilsMessanger {
         _debug_utils: debug_utils,

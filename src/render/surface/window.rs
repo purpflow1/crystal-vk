@@ -2,8 +2,6 @@ use std::error::Error;
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle};
 
-use crate::errors::DeviceError;
-
 #[derive(Clone, Copy)]
 pub(crate) struct WindowSystemRawHandlers {
     pub window: RawWindowHandle,
@@ -20,9 +18,7 @@ impl WindowSystemRawHandlers {
                 display: display.as_raw(),
             })
         } else {
-            Err(Box::new(DeviceError::new(
-                "cannot get window system handlers".to_string(),
-            )))
+            Err("cannot get window system handlers".into())
         }
     }
 }

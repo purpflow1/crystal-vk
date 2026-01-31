@@ -2,11 +2,7 @@ use std::{error::Error, marker::PhantomData, sync::Arc};
 
 use ash::vk;
 
-use crate::{
-    error,
-    errors::PipelineError,
-    pipeline::{Pipeline, PipelineInfo, descriptor::layout::PipelineLayout, shader::Shader},
-};
+use crate::pipeline::{Pipeline, PipelineInfo, descriptor::layout::PipelineLayout, shader::Shader};
 
 impl Pipeline<u32> {
     pub fn new_compute(
@@ -31,7 +27,7 @@ impl Pipeline<u32> {
         } {
             Ok(pipelines) => pipelines[0],
             Err(e) => {
-                return error!(PipelineError, "cannot create compute pipeline: {e:?}");
+                return Err(e.1.into());
             }
         };
 

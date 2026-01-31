@@ -2,7 +2,7 @@ use std::{error::Error, sync::Arc};
 
 use ash::vk;
 
-use crate::{device::Device, error, errors::DeviceError};
+use crate::device::Device;
 
 pub(crate) struct RenderPassInfo {
     pub samples: vk::SampleCountFlags,
@@ -54,7 +54,7 @@ impl RenderPass {
         ) {
             Some(format) => format,
             None => {
-                return error!(DeviceError, "cannot find depth format");
+                return Err("cannot find supported depth format".into());
             }
         };
 
@@ -145,16 +145,11 @@ impl RenderPass {
             .subpasses(subpasses)
             .dependencies(dependencies);
 
-        let render_pass = match unsafe {
+        let render_pass = unsafe {
             device
                 .handle
                 .create_render_pass(&render_pass_create_info, None)
-        } {
-            Ok(render_pass) => render_pass,
-            Err(e) => {
-                return error!(DeviceError, "failed to crate render pass: {e}");
-            }
-        };
+        }?;
 
         Ok(Arc::new(Self {
             handle: render_pass,

@@ -12,8 +12,6 @@ use ash::vk;
 
 use crate::{
     device::Device,
-    error,
-    errors::DeviceError,
     image::{Image, ImageType},
     render::{
         framebuffer::FramebufferPool,
@@ -62,9 +60,9 @@ impl RenderTarget {
         };
 
         if !samples.intersects(counts) {
-            let s = msaa_samples;
-
-            return error!(DeviceError, "device is not supported for sample count: {s}");
+            return Err(
+                format!("device is not supported for sample count: {}", msaa_samples).into(),
+            );
         };
 
         let present = image_sequence[0].info.typ == ImageType::Swapchain;
