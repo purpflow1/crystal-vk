@@ -10,3 +10,5 @@ pub mod pipeline;
 pub mod render;
 pub mod sync;
 pub mod traits;
+
+pub use ash::vk;

@@ -6,7 +6,6 @@ use std::{
     io::{BufReader, Read},
 };
 
-use ash::vk;
 use crystal_vk::{
     buffer::{Buffer, BufferInfo},
     command::{CommandBufferAllocator, command_buffer_builder::CommandBufferBuilder},
@@ -22,6 +21,7 @@ use crystal_vk::{
         },
         shader::Shader,
     },
+    vk,
 };
 use futures::executor;
 

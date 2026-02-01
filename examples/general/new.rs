@@ -8,7 +8,6 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
 };
 
-use ash::vk::{self, DescriptorType, ShaderStageFlags};
 use crystal_vk::{
     buffer::{Buffer, BufferInfo},
     command::{CommandBufferAllocator, command_buffer_builder::CommandBufferBuilder},
@@ -27,6 +26,7 @@ use crystal_vk::{
         shader::Shader,
     },
     render::{RenderTarget, swapchain::Swapchain},
+    vk,
 };
 use winit::{dpi::LogicalSize, window::Window};
 
@@ -61,16 +61,16 @@ impl VulkanContext {
         layout_alloc_infos.insert(
             0,
             LayoutAllocInfo {
-                stages: ShaderStageFlags::VERTEX,
-                typ: DescriptorType::STORAGE_BUFFER,
+                stages: vk::ShaderStageFlags::VERTEX,
+                typ: vk::DescriptorType::STORAGE_BUFFER,
                 count: 1,
             },
         );
         layout_alloc_infos.insert(
             1,
             LayoutAllocInfo {
-                stages: ShaderStageFlags::FRAGMENT,
-                typ: DescriptorType::COMBINED_IMAGE_SAMPLER,
+                stages: vk::ShaderStageFlags::FRAGMENT,
+                typ: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
                 count: 1,
             },
         );

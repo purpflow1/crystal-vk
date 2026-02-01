@@ -1,9 +1,9 @@
 use std::{error::Error, f32::consts::PI, sync::atomic::Ordering, time::Duration};
 
-use ash::vk::{self};
 use crystal_vk::{
     command::command_buffer_builder::CommandBufferBuilder,
     render::{RenderTarget, swapchain::Swapchain},
+    vk,
 };
 use futures::executor;
 
