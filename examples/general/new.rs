@@ -111,6 +111,11 @@ impl VulkanContext {
             shaderc::ShaderKind::Vertex
         );
 
+        let textured_frag = glsl2spirv!(
+            "examples/shaders/textured.frag",
+            shaderc::ShaderKind::Fragment
+        );
+
         let entry_point = CString::new("main").unwrap();
 
         let shader_textured_vert = Shader::new(
@@ -120,11 +125,6 @@ impl VulkanContext {
             textured_vert.as_binary().to_vec(),
         )
         .unwrap();
-
-        let textured_frag = glsl2spirv!(
-            "examples/shaders/textured.frag",
-            shaderc::ShaderKind::Fragment
-        );
 
         let shader_textured_frag = Shader::new(
             device.clone(),
