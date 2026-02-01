@@ -47,7 +47,7 @@ impl VulkanContext {
 
         let render_camera = perspective * camera;
 
-        let mut buffer = self.buffer_model.write().unwrap();
+        let mut lock = self.buffer_model.write().unwrap();
 
         let seconds = self.timeline.startup_time.elapsed().unwrap().as_secs_f32();
 
@@ -57,12 +57,18 @@ impl VulkanContext {
             glam::Vec3::new(0., 0., 1.),
         );
 
-        buffer[0] = render_camera * model;
+        let eye = (render_camera * model).to_cols_array();
 
-        let mut buffer = self.buffer_resolution_uniform.write().unwrap();
-        buffer[0] = glam::Vec2::new(self.extent[0] as f32, self.extent[1] as f32);
+        let size = lock.info.size;
+        let memory = lock.get_memory(0..size);
+        memory.copy_from_slice(bytemuck::cast_slice(&eye));
 
-        drop(buffer);
+        let mut lock = self.buffer_resolution_uniform.write().unwrap();
+        let memory = lock.get_memory(0..8);
+        memory.copy_from_slice(bytemuck::cast_slice(&[
+            self.extent[0] as f32,
+            self.extent[1] as f32,
+        ]));
 
         let (family_info, queues) = self
             .queues

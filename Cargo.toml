@@ -39,3 +39,4 @@ winit = { version = "0.30.10", features = ["rwh_06"] }
 glam = "0.30.3"
 png = "0.18.0"
 futures = "0.3.31"
+bytemuck = "1.25.0"

@@ -67,9 +67,9 @@ impl DescriptorSet {
         Ok(())
     }
 
-    pub fn bind_buffer<T: 'static>(
+    pub fn bind_buffer(
         &mut self,
-        buffer: Arc<RwLock<Buffer<T>>>,
+        buffer: Arc<RwLock<Buffer>>,
         binding: u32,
         array_offset: u32,
         array_count: u32,
@@ -86,8 +86,8 @@ impl DescriptorSet {
         };
 
         let buffer_info = [vk::DescriptorBufferInfo::default()
-            .buffer(buffer_lock.as_raw())
-            .range(buffer_lock.len() * size_of::<T>() as u64)];
+            .buffer(buffer_lock.handle)
+            .range(buffer_lock.info.size)];
 
         let descriptor_write = vk::WriteDescriptorSet::default()
             .dst_set(self.handle)

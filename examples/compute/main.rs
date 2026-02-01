@@ -8,7 +8,7 @@ use std::{
 
 use ash::vk;
 use crystal_vk::{
-    buffer::{Buffer, BufferCreateInfo},
+    buffer::{Buffer, BufferInfo},
     command::{CommandBufferAllocator, command_buffer_builder::CommandBufferBuilder},
     device::Device,
     pipeline::{
@@ -28,10 +28,10 @@ use futures::executor;
 fn main() -> Result<(), Box<dyn Error>> {
     let (device, queues) = Device::compute(|devices| devices[0].clone())?;
 
-    let buffer_in = Buffer::<u32>::new(
+    let buffer_in = Buffer::new(
         device.clone(),
-        BufferCreateInfo {
-            len: 256,
+        BufferInfo {
+            size: 512,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
             usage: vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
             properties: vk::MemoryPropertyFlags::HOST_VISIBLE
@@ -39,10 +39,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     )?;
 
-    let buffer_out = Buffer::<u32>::new(
+    let buffer_out = Buffer::new(
         device.clone(),
-        BufferCreateInfo {
-            len: 256,
+        BufferInfo {
+            size: 512,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
             usage: vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
             properties: vk::MemoryPropertyFlags::HOST_VISIBLE
@@ -96,7 +96,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let pipeline_layout = PipelineLayout::new(descriptor_pool, vec![descriptor_set_layout])?;
     let pipeline = Pipeline::new_compute(pipeline_layout.clone(), shader)?;
 
-    buffer_in.write().unwrap()[..].fill(2);
+    let mut lock = buffer_in.write().unwrap();
+    let memory = lock.get_memory(0..512);
+    memory.fill(0);
+    drop(lock);
 
     let (queue_info, queue) = queues
         .iter()
@@ -129,10 +132,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let future = command_buffer_builder.build(queue)?;
     executor::block_on(future)?;
-
-    let lock = buffer_out.read().unwrap();
-    let data = &lock[..2];
-    dbg!(data);
 
     Ok(())
 }

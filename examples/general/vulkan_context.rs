@@ -9,11 +9,7 @@ use crystal_vk::{
     command::CommandBufferAllocator,
     device::{Device, queue::QueuePool},
     image::sampler::Sampler,
-    pipeline::{
-        Pipeline,
-        attribute::{Attribute, AttributeDescriptor},
-        descriptor::descriptor_set_layout::descriptor_set::DescriptorSet,
-    },
+    pipeline::{Pipeline, descriptor::descriptor_set_layout::descriptor_set::DescriptorSet},
     render::{RenderTarget, swapchain::Swapchain},
 };
 
@@ -28,20 +24,7 @@ pub type Index = u16;
 #[derive(Clone, Copy, Default)]
 pub struct VertexTexture(pub Vec3, pub Vec2);
 
-impl AttributeDescriptor for VertexTexture {
-    fn get_attributes() -> &'static [Attribute] {
-        &[
-            Attribute {
-                size: size_of::<Vec3>(),
-                offset: 0,
-            },
-            Attribute {
-                size: size_of::<Vec2>(),
-                offset: size_of::<Vec3>(),
-            },
-        ]
-    }
-}
+unsafe impl bytemuck::NoUninit for VertexTexture {}
 
 type FutureType = dyn Future<Output = Result<bool, Box<dyn Error>>> + Send + Sync;
 
@@ -58,14 +41,14 @@ pub struct VulkanContext {
 
     pub command_allocator: Arc<CommandBufferAllocator>,
 
-    pub buffer_vert: Arc<RwLock<Buffer<VertexTexture>>>,
-    pub buffer_ind: Arc<RwLock<Buffer<Index>>>,
-    pub buffer_model: Arc<RwLock<Buffer<glam::Mat4>>>,
-    pub buffer_resolution_uniform: Arc<RwLock<Buffer<glam::Vec2>>>,
+    pub buffer_vert: Arc<RwLock<Buffer>>,
+    pub buffer_ind: Arc<RwLock<Buffer>>,
+    pub buffer_model: Arc<RwLock<Buffer>>,
+    pub buffer_resolution_uniform: Arc<RwLock<Buffer>>,
     pub post_process_sampler: Arc<Sampler>,
 
-    pub post_process_pipeline: Arc<Pipeline<VertexTexture>>,
-    pub pipeline: Arc<Pipeline<VertexTexture>>,
+    pub post_process_pipeline: Arc<Pipeline>,
+    pub pipeline: Arc<Pipeline>,
     pub per_object_descriptor_set: Arc<Mutex<DescriptorSet>>,
     pub post_process_descriptor_set: Arc<Mutex<DescriptorSet>>,
 

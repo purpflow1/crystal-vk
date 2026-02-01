@@ -10,11 +10,12 @@ use std::{
 
 use ash::vk::{self, DescriptorType, ShaderStageFlags};
 use crystal_vk::{
-    buffer::{Buffer, BufferCreateInfo},
+    buffer::{Buffer, BufferInfo},
     command::{CommandBufferAllocator, command_buffer_builder::CommandBufferBuilder},
     device::Device,
     image::sampler::{Sampler, SamplerInfo},
     pipeline::{
+        attribute::Attribute,
         descriptor::{
             DescriptorPool,
             descriptor_set_layout::{
@@ -145,11 +146,23 @@ impl VulkanContext {
         let swapchain_render_target =
             RenderTarget::new(device.clone(), swapchain_images, 4).unwrap();
 
-        let world_object_pipeline = crystal_vk::pipeline::Pipeline::<VertexTexture>::new_graphics(
+        let world_object_pipeline = crystal_vk::pipeline::Pipeline::new_graphics(
             per_object_pipeline_layout,
             post_process_render_target.clone(),
             vec![shader_textured_vert, shader_textured_frag],
-            GraphicsPipelineInfo::default(),
+            GraphicsPipelineInfo {
+                vertex_attributes: vec![
+                    Attribute {
+                        size: size_of::<[f32; 3]>(),
+                        offset: 0,
+                    },
+                    Attribute {
+                        size: size_of::<[f32; 2]>(),
+                        offset: size_of::<[f32; 3]>(),
+                    },
+                ],
+                ..Default::default()
+            },
         )
         .unwrap();
 
@@ -162,10 +175,10 @@ impl VulkanContext {
             shaderc::ShaderKind::Fragment
         );
 
-        let buffer_vertex = Buffer::<VertexTexture>::new(
+        let buffer_vertex = Buffer::new(
             device.clone(),
-            BufferCreateInfo {
-                len: 12,
+            BufferInfo {
+                size: 12 * size_of::<VertexTexture>() as u64,
                 sharing_mode: vk::SharingMode::EXCLUSIVE,
                 usage: vk::BufferUsageFlags::VERTEX_BUFFER,
                 properties: vk::MemoryPropertyFlags::HOST_VISIBLE,
@@ -175,8 +188,9 @@ impl VulkanContext {
 
         {
             let mut lock = buffer_vertex.write().unwrap();
-            let buffer = &mut lock[..];
-            buffer.copy_from_slice(&[
+            let size = lock.info.size;
+            let memory = lock.get_memory(0..size);
+            memory.copy_from_slice(bytemuck::cast_slice(&[
                 // cube bottom
                 VertexTexture([0.5, -0.5, 0.5], [0.0, 0.0]),
                 VertexTexture([0.5, -0.5, -0.5], [1.0, 0.0]),
@@ -192,13 +206,13 @@ impl VulkanContext {
                 VertexTexture([1., -1., 0.], [1., 0.]),
                 VertexTexture([1., 1., 0.], [1., 1.]),
                 VertexTexture([-1., 1., 0.], [0., 1.]),
-            ]);
+            ]));
         }
 
-        let buffer_index = Buffer::<Index>::new(
+        let buffer_index = Buffer::new(
             device.clone(),
-            BufferCreateInfo {
-                len: 42,
+            BufferInfo {
+                size: 42 * size_of::<Index>() as u64,
                 sharing_mode: vk::SharingMode::EXCLUSIVE,
                 usage: vk::BufferUsageFlags::INDEX_BUFFER,
                 properties: vk::MemoryPropertyFlags::HOST_VISIBLE,
@@ -208,8 +222,9 @@ impl VulkanContext {
 
         {
             let mut lock = buffer_index.write().unwrap();
-            let buffer = &mut lock[..];
-            buffer.copy_from_slice(&[
+            let size = lock.info.size;
+            let memory = lock.get_memory(0..size);
+            memory.copy_from_slice(bytemuck::cast_slice::<u16, u8>(&[
                 0, 2, 1, 1, 2, 3, // bottom
                 4, 5, 6, 5, 7, 6, // top
                 0, 4, 2, 2, 4, 6, // front
@@ -217,13 +232,13 @@ impl VulkanContext {
                 0, 1, 4, 1, 5, 4, // right
                 2, 6, 3, 3, 6, 7, // left
                 0, 2, 1, 3, 2, 0, // screen plane
-            ]);
+            ]));
         }
 
-        let buffer_model = Buffer::<glam::Mat4>::new(
+        let buffer_model = Buffer::new(
             device.clone(),
-            BufferCreateInfo {
-                len: 1,
+            BufferInfo {
+                size: size_of::<glam::Mat4>() as u64,
                 sharing_mode: vk::SharingMode::EXCLUSIVE,
                 usage: vk::BufferUsageFlags::STORAGE_BUFFER,
                 properties: vk::MemoryPropertyFlags::HOST_VISIBLE,
@@ -253,8 +268,8 @@ impl VulkanContext {
 
             let buffer = Buffer::new(
                 device.clone(),
-                BufferCreateInfo {
-                    len: size as u64,
+                BufferInfo {
+                    size: size as u64,
                     sharing_mode: vk::SharingMode::EXCLUSIVE,
                     usage: vk::BufferUsageFlags::TRANSFER_SRC,
                     properties: vk::MemoryPropertyFlags::HOST_COHERENT
@@ -264,7 +279,8 @@ impl VulkanContext {
             .unwrap();
 
             let mut lock = buffer.write().unwrap();
-            let info = reader.next_frame(&mut lock[..size as u64]).unwrap();
+            let memory = lock.get_memory(0..size as u64);
+            let info = reader.next_frame(memory).unwrap();
             drop(lock);
 
             (
@@ -340,8 +356,8 @@ impl VulkanContext {
 
         let buffer_resolution_uniform = Buffer::new(
             device.clone(),
-            BufferCreateInfo {
-                len: 1,
+            BufferInfo {
+                size: size_of::<glam::Vec2>() as u64,
                 sharing_mode: vk::SharingMode::EXCLUSIVE,
                 usage: vk::BufferUsageFlags::UNIFORM_BUFFER,
                 properties: vk::MemoryPropertyFlags::HOST_VISIBLE,
@@ -350,11 +366,11 @@ impl VulkanContext {
         .unwrap();
 
         let mut lock = buffer_resolution_uniform.write().unwrap();
-
-        lock[0] = glam::Vec2::new(
+        let memory = lock.get_memory(0..8);
+        memory.copy_from_slice(bytemuck::cast_slice(&[
             window.inner_size().width as f32,
             window.inner_size().height as f32,
-        );
+        ]));
 
         drop(lock);
 
@@ -406,11 +422,23 @@ impl VulkanContext {
         )
         .unwrap();
 
-        let post_process_pipeline = crystal_vk::pipeline::Pipeline::<VertexTexture>::new_graphics(
+        let post_process_pipeline = crystal_vk::pipeline::Pipeline::new_graphics(
             post_process_pipeline_layout,
             swapchain_render_target.clone(),
             vec![post_process_vert, post_process_frag],
-            GraphicsPipelineInfo::default(),
+            GraphicsPipelineInfo {
+                vertex_attributes: vec![
+                    Attribute {
+                        size: size_of::<[f32; 3]>(),
+                        offset: 0,
+                    },
+                    Attribute {
+                        size: size_of::<[f32; 2]>(),
+                        offset: size_of::<[f32; 3]>(),
+                    },
+                ],
+                ..Default::default()
+            },
         )
         .unwrap();
 

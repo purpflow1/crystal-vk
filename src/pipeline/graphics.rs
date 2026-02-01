@@ -1,10 +1,10 @@
-use std::{error::Error, iter::zip, marker::PhantomData, sync::Arc};
+use std::{error::Error, iter::zip, sync::Arc};
 
 use ash::vk;
 
 use crate::{
     pipeline::{
-        Pipeline, PipelineInfo, attribute::AttributeDescriptor, descriptor::layout::PipelineLayout,
+        Pipeline, PipelineInfo, attribute::Attribute, descriptor::layout::PipelineLayout,
         shader::Shader,
     },
     render::RenderTarget,
@@ -17,6 +17,7 @@ pub struct GraphicsPipelineInfo {
     pub polygon_mode: vk::PolygonMode,
     pub cull_mode: vk::CullModeFlags,
     pub front_face: vk::FrontFace,
+    pub vertex_attributes: Vec<Attribute>,
 }
 
 impl Default for GraphicsPipelineInfo {
@@ -28,17 +29,18 @@ impl Default for GraphicsPipelineInfo {
             polygon_mode: vk::PolygonMode::FILL,
             cull_mode: vk::CullModeFlags::BACK,
             front_face: vk::FrontFace::COUNTER_CLOCKWISE,
+            vertex_attributes: vec![],
         }
     }
 }
 
-impl<T: AttributeDescriptor> Pipeline<T> {
+impl Pipeline {
     pub fn new_graphics(
         pipeline_layout: Arc<PipelineLayout>,
         render_target: Arc<RenderTarget>,
         shaders: Vec<Arc<Shader>>,
         mut pipeline_info: GraphicsPipelineInfo,
-    ) -> Result<Arc<Pipeline<T>>, Box<dyn Error>> {
+    ) -> Result<Arc<Pipeline>, Box<dyn Error>> {
         if shaders.is_empty() {
             return Err("no shaders specified".into());
         }
@@ -56,7 +58,7 @@ impl<T: AttributeDescriptor> Pipeline<T> {
             stages.push(stage);
         }
 
-        let attributes = T::get_attributes();
+        let attributes = pipeline_info.vertex_attributes.clone();
 
         let binding_descriptions = &[vk::VertexInputBindingDescription::default()
             .binding(0)
@@ -186,7 +188,6 @@ impl<T: AttributeDescriptor> Pipeline<T> {
                 pipeline_layout,
                 _shaders: shaders,
                 _render_target: Some(render_target),
-                _tp: PhantomData,
             })),
             Err(e) => Err(e.1.into()),
         }

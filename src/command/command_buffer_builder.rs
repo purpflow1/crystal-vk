@@ -306,10 +306,10 @@ impl CommandBufferBuilder {
         Ok(self)
     }
 
-    pub fn stage_image<T: 'static>(
+    pub fn stage_image(
         mut self: Box<Self>,
         image: Arc<Image>,
-        buffer: Arc<RwLock<Buffer<T>>>,
+        buffer: Arc<RwLock<Buffer>>,
     ) -> Result<Box<Self>, Box<dyn Error>> {
         self.bindings.push(image.clone());
         self.bindings.push(buffer.clone());
@@ -342,7 +342,7 @@ impl CommandBufferBuilder {
         unsafe {
             lock.device.handle.cmd_copy_buffer_to_image(
                 self.handle,
-                lock.as_raw(),
+                lock.handle,
                 image.handle,
                 vk::ImageLayout::TRANSFER_DST_OPTIMAL,
                 &[region],
@@ -419,31 +419,24 @@ impl CommandBufferBuilder {
         self
     }
 
-    pub fn bind_index_buffer<T: 'static>(
-        mut self: Box<Self>,
-        buffer: Arc<RwLock<Buffer<T>>>,
-    ) -> Box<Self> {
+    pub fn bind_index_buffer(mut self: Box<Self>, buffer: Arc<RwLock<Buffer>>) -> Box<Self> {
         self.bindings.push(buffer.clone());
         let buffer_lock = buffer.read().unwrap();
-        let buffer_raw = buffer_lock.as_raw();
         unsafe {
             self.command_buffer_allocator
                 .device
                 .handle
-                .cmd_bind_index_buffer(self.handle, buffer_raw, 0, vk::IndexType::UINT16);
+                .cmd_bind_index_buffer(self.handle, buffer_lock.handle, 0, vk::IndexType::UINT16);
         };
 
         self
     }
 
-    pub fn bind_vertex_buffer<T: 'static>(
-        mut self: Box<Self>,
-        buffer: Arc<RwLock<Buffer<T>>>,
-    ) -> Box<Self> {
+    pub fn bind_vertex_buffer(mut self: Box<Self>, buffer: Arc<RwLock<Buffer>>) -> Box<Self> {
         self.bindings.push(buffer.clone());
         unsafe {
             let buffer_lock = buffer.read().unwrap();
-            let buffer_raw = buffer_lock.as_raw();
+            let buffer_raw = buffer_lock.handle;
 
             self.command_buffer_allocator
                 .device
@@ -472,7 +465,7 @@ impl CommandBufferBuilder {
         self
     }
 
-    pub fn bind_pipeline<T: 'static>(mut self: Box<Self>, pipeline: Arc<Pipeline<T>>) -> Box<Self> {
+    pub fn bind_pipeline(mut self: Box<Self>, pipeline: Arc<Pipeline>) -> Box<Self> {
         self.info.last_pipeline_bind_point = pipeline.bind_point;
 
         self.bindings.push(pipeline.clone());
