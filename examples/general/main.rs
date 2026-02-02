@@ -27,8 +27,6 @@ impl ApplicationHandler for ContextWindow {
         self.window = Some(window);
     }
 
-    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {}
-
     fn window_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
