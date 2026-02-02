@@ -389,6 +389,23 @@ impl CommandBufferBuilder {
         self
     }
 
+    pub fn draw_indexed_inderect(
+        self: Box<Self>,
+        buffer: Arc<RwLock<Buffer>>,
+        offset: u64,
+        draw_count: u32,
+        stride: u32,
+    ) -> Box<Self> {
+        unsafe {
+            let lock = buffer.read().unwrap();
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_draw_indexed_indirect(self.handle, lock.handle, offset, draw_count, stride);
+        }
+        self
+    }
+
     pub fn bind_descriptor_sets(
         mut self: Box<Self>,
         pipeline_layout: Arc<PipelineLayout>,
