@@ -183,7 +183,7 @@ impl VulkanContext {
             vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
         )
         .unwrap()
-        .begin_render_pass(self.post_process_render_target.clone(), 0)
+        .bind_render_target(self.post_process_render_target.clone(), 0)
         .unwrap()
         .bind_viewport_and_scissor(
             vec![vk::Viewport {
@@ -201,22 +201,20 @@ impl VulkanContext {
         )
         .bind_pipeline(self.pipeline.clone())
         .bind_vertex_buffer(self.buffer_vert.clone())
+        .unwrap()
         .bind_index_buffer(self.buffer_ind.clone())
+        .unwrap()
         .bind_descriptor_sets(0, vec![self.per_object_descriptor_set.clone()])
         .unwrap()
         .draw_indexed(36, 1, 0, 0, 0)
         .unwrap()
-        .end_render_pass()
-        .begin_render_pass(self.swapchain_render_target.clone(), image_index)
+        .bind_render_target(self.swapchain_render_target.clone(), image_index)
         .unwrap()
         .bind_pipeline(self.post_process_pipeline.clone())
-        .bind_vertex_buffer(self.buffer_vert.clone())
-        .bind_index_buffer(self.buffer_ind.clone())
         .bind_descriptor_sets(0, vec![self.post_process_descriptor_set.clone()])
         .unwrap()
         .draw_indexed(6, 1, 36, 8, 0)
-        .unwrap()
-        .end_render_pass();
+        .unwrap();
 
         executor::block_on(swapchain_future).unwrap();
 

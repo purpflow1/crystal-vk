@@ -16,18 +16,15 @@ use crate::{
     traits::CommandBufferBinding,
 };
 
-#[derive(Default)]
-pub struct CommandBufferBuilderInfo {
-    last_pipeline_bound: Option<Arc<Pipeline>>,
-}
-
 /// # Safety
 /// Everything is boxed
 pub struct CommandBufferBuilder {
     pub(crate) handle: vk::CommandBuffer,
     pub(crate) command_buffer_allocator: Arc<CommandBufferAllocator>,
-    info: CommandBufferBuilderInfo,
+
     bindings: Vec<Arc<dyn CommandBufferBinding>>,
+    last_pipeline_bound: Option<Arc<Pipeline>>,
+    render_pass_begun: bool,
 }
 
 impl CommandBufferBuilder {
@@ -35,6 +32,10 @@ impl CommandBufferBuilder {
         self: Box<Self>,
         queue: Arc<Mutex<Queue>>,
     ) -> Result<Box<CommandBufferFuture>, Box<dyn Error>> {
+        if self.render_pass_begun {
+            self.end_render_pass();
+        }
+
         unsafe {
             self.command_buffer_allocator
                 .device
@@ -81,8 +82,9 @@ impl CommandBufferBuilder {
         Ok(Box::new(Self {
             handle: command_buffer,
             command_buffer_allocator,
-            info: Default::default(),
             bindings: Vec::new(),
+            last_pipeline_bound: None,
+            render_pass_begun: false,
         }))
     }
 
@@ -348,7 +350,7 @@ impl CommandBufferBuilder {
     }
 
     pub fn dispatch(self: Box<Self>, group_count: [u32; 3]) -> Result<Box<Self>, Box<dyn Error>> {
-        if self.info.last_pipeline_bound.is_none() {
+        if self.last_pipeline_bound.is_none() {
             return Err("Pipeline should be bound before the dispatch call!".into());
         }
 
@@ -372,7 +374,7 @@ impl CommandBufferBuilder {
         vertex_offset: i32,
         first_instance: u32,
     ) -> Result<Box<Self>, Box<dyn Error>> {
-        if self.info.last_pipeline_bound.is_none() {
+        if self.last_pipeline_bound.is_none() {
             return Err("Pipeline should be bound before the draw call!".into());
         }
 
@@ -399,7 +401,7 @@ impl CommandBufferBuilder {
         draw_count: u32,
         stride: u32,
     ) -> Result<Box<Self>, Box<dyn Error>> {
-        if self.info.last_pipeline_bound.is_none() {
+        if self.last_pipeline_bound.is_none() {
             return Err("Pipeline should be bound before the draw call!".into());
         }
 
@@ -422,7 +424,7 @@ impl CommandBufferBuilder {
             self.bindings.push(descriptor_set.clone());
         }
 
-        let pipeline = if let Some(pipeline) = self.info.last_pipeline_bound.clone() {
+        let pipeline = if let Some(pipeline) = self.last_pipeline_bound.clone() {
             pipeline
         } else {
             return Err(
@@ -453,9 +455,22 @@ impl CommandBufferBuilder {
         Ok(self)
     }
 
-    pub fn bind_index_buffer(mut self: Box<Self>, buffer: Arc<RwLock<Buffer>>) -> Box<Self> {
-        self.bindings.push(buffer.clone());
+    pub fn bind_index_buffer(
+        mut self: Box<Self>,
+        buffer: Arc<RwLock<Buffer>>,
+    ) -> Result<Box<Self>, Box<dyn Error>> {
         let buffer_lock = buffer.read().unwrap();
+
+        if !buffer_lock
+            .info
+            .usage
+            .intersects(vk::BufferUsageFlags::INDEX_BUFFER)
+        {
+            return Err("Cannot bind index buffer without INDEX_BUFFER usage flags!".into());
+        }
+
+        self.bindings.push(buffer.clone());
+
         unsafe {
             self.command_buffer_allocator
                 .device
@@ -463,22 +478,35 @@ impl CommandBufferBuilder {
                 .cmd_bind_index_buffer(self.handle, buffer_lock.handle, 0, vk::IndexType::UINT16);
         };
 
-        self
+        Ok(self)
     }
 
-    pub fn bind_vertex_buffer(mut self: Box<Self>, buffer: Arc<RwLock<Buffer>>) -> Box<Self> {
-        self.bindings.push(buffer.clone());
-        unsafe {
-            let buffer_lock = buffer.read().unwrap();
-            let buffer_raw = buffer_lock.handle;
+    pub fn bind_vertex_buffer(
+        mut self: Box<Self>,
+        buffer: Arc<RwLock<Buffer>>,
+    ) -> Result<Box<Self>, Box<dyn Error>> {
+        let buffer_lock = buffer.read().unwrap();
 
+        if !buffer_lock
+            .info
+            .usage
+            .intersects(vk::BufferUsageFlags::VERTEX_BUFFER)
+        {
+            return Err("Cannot bind vertex buffer without VERTEX_BUFFER usage flags!".into());
+        }
+
+        self.bindings.push(buffer.clone());
+
+        let buffer_raw = buffer_lock.handle;
+
+        unsafe {
             self.command_buffer_allocator
                 .device
                 .handle
                 .cmd_bind_vertex_buffers(self.handle, 0, &[buffer_raw], &[0]);
         };
 
-        self
+        Ok(self)
     }
 
     pub fn bind_viewport_and_scissor(
@@ -500,7 +528,7 @@ impl CommandBufferBuilder {
     }
 
     pub fn bind_pipeline(mut self: Box<Self>, pipeline: Arc<Pipeline>) -> Box<Self> {
-        self.info.last_pipeline_bound = Some(pipeline.clone());
+        self.last_pipeline_bound = Some(pipeline.clone());
 
         self.bindings.push(pipeline.clone());
         unsafe {
@@ -513,22 +541,17 @@ impl CommandBufferBuilder {
         self
     }
 
-    pub fn end_render_pass(self: Box<Self>) -> Box<Self> {
-        unsafe {
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_end_render_pass(self.handle)
-        };
-
-        self
-    }
-
-    pub fn begin_render_pass(
+    pub fn bind_render_target(
         mut self: Box<Self>,
         render_target: Arc<RenderTarget>,
         image_index: u32,
     ) -> Result<Box<Self>, Box<dyn Error>> {
+        if self.render_pass_begun {
+            self.end_render_pass();
+        }
+
+        self.render_pass_begun = true;
+
         self.bindings.push(render_target.clone());
         let color = 0.3f32;
         let clear_value_color = vk::ClearValue {
@@ -568,5 +591,14 @@ impl CommandBufferBuilder {
         }
 
         Ok(self)
+    }
+
+    fn end_render_pass(&self) {
+        unsafe {
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_end_render_pass(self.handle)
+        };
     }
 }
