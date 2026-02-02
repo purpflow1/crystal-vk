@@ -127,8 +127,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let command_buffer_builder = command_buffer_builder
         .bind_pipeline(pipeline)
-        .bind_descriptor_sets(pipeline_layout.clone(), 0, vec![descriptor_set.clone()])
-        .dispatch([1, 1, 1]);
+        .bind_descriptor_sets(0, vec![descriptor_set.clone()])
+        .unwrap()
+        .dispatch([1, 1, 1])
+        .unwrap();
 
     let future = command_buffer_builder.build(queue)?;
     executor::block_on(future)?;

@@ -202,24 +202,20 @@ impl VulkanContext {
         .bind_pipeline(self.pipeline.clone())
         .bind_vertex_buffer(self.buffer_vert.clone())
         .bind_index_buffer(self.buffer_ind.clone())
-        .bind_descriptor_sets(
-            self.pipeline.pipeline_layout.clone(),
-            0,
-            vec![self.per_object_descriptor_set.clone()],
-        )
+        .bind_descriptor_sets(0, vec![self.per_object_descriptor_set.clone()])
+        .unwrap()
         .draw_indexed(36, 1, 0, 0, 0)
+        .unwrap()
         .end_render_pass()
         .begin_render_pass(self.swapchain_render_target.clone(), image_index)
         .unwrap()
         .bind_pipeline(self.post_process_pipeline.clone())
         .bind_vertex_buffer(self.buffer_vert.clone())
         .bind_index_buffer(self.buffer_ind.clone())
-        .bind_descriptor_sets(
-            self.post_process_pipeline.pipeline_layout.clone(),
-            0,
-            vec![self.post_process_descriptor_set.clone()],
-        )
+        .bind_descriptor_sets(0, vec![self.post_process_descriptor_set.clone()])
+        .unwrap()
         .draw_indexed(6, 1, 36, 8, 0)
+        .unwrap()
         .end_render_pass();
 
         executor::block_on(swapchain_future).unwrap();

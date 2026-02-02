@@ -10,12 +10,7 @@ use crate::{
     command::CommandBufferAllocator,
     device::queue::Queue,
     image::Image,
-    pipeline::{
-        Pipeline,
-        descriptor::{
-            descriptor_set_layout::descriptor_set::DescriptorSet, layout::PipelineLayout,
-        },
-    },
+    pipeline::{Pipeline, descriptor::descriptor_set_layout::descriptor_set::DescriptorSet},
     render::RenderTarget,
     sync::CommandBufferFuture,
     traits::CommandBufferBinding,
@@ -23,7 +18,7 @@ use crate::{
 
 #[derive(Default)]
 pub struct CommandBufferBuilderInfo {
-    last_pipeline_bind_point: vk::PipelineBindPoint,
+    last_pipeline_bound: Option<Arc<Pipeline>>,
 }
 
 /// # Safety
@@ -352,7 +347,11 @@ impl CommandBufferBuilder {
         Ok(self)
     }
 
-    pub fn dispatch(self: Box<Self>, group_count: [u32; 3]) -> Box<Self> {
+    pub fn dispatch(self: Box<Self>, group_count: [u32; 3]) -> Result<Box<Self>, Box<dyn Error>> {
+        if self.info.last_pipeline_bound.is_none() {
+            return Err("Pipeline should be bound before the dispatch call!".into());
+        }
+
         unsafe {
             self.command_buffer_allocator.device.handle.cmd_dispatch(
                 self.handle,
@@ -362,7 +361,7 @@ impl CommandBufferBuilder {
             );
         }
 
-        self
+        Ok(self)
     }
 
     pub fn draw_indexed(
@@ -372,7 +371,11 @@ impl CommandBufferBuilder {
         first_index: u32,
         vertex_offset: i32,
         first_instance: u32,
-    ) -> Box<Self> {
+    ) -> Result<Box<Self>, Box<dyn Error>> {
+        if self.info.last_pipeline_bound.is_none() {
+            return Err("Pipeline should be bound before the draw call!".into());
+        }
+
         unsafe {
             self.command_buffer_allocator
                 .device
@@ -386,7 +389,7 @@ impl CommandBufferBuilder {
                     first_instance,
                 );
         }
-        self
+        Ok(self)
     }
 
     pub fn draw_indexed_inderect(
@@ -395,7 +398,11 @@ impl CommandBufferBuilder {
         offset: u64,
         draw_count: u32,
         stride: u32,
-    ) -> Box<Self> {
+    ) -> Result<Box<Self>, Box<dyn Error>> {
+        if self.info.last_pipeline_bound.is_none() {
+            return Err("Pipeline should be bound before the draw call!".into());
+        }
+
         unsafe {
             let lock = buffer.read().unwrap();
             self.command_buffer_allocator
@@ -403,19 +410,29 @@ impl CommandBufferBuilder {
                 .handle
                 .cmd_draw_indexed_indirect(self.handle, lock.handle, offset, draw_count, stride);
         }
-        self
+        Ok(self)
     }
 
     pub fn bind_descriptor_sets(
         mut self: Box<Self>,
-        pipeline_layout: Arc<PipelineLayout>,
         first_set: u32,
         descriptor_sets: Vec<Arc<Mutex<DescriptorSet>>>,
-    ) -> Box<Self> {
-        self.bindings.push(pipeline_layout.clone());
+    ) -> Result<Box<Self>, Box<dyn Error>> {
         for descriptor_set in descriptor_sets.iter() {
             self.bindings.push(descriptor_set.clone());
         }
+
+        let pipeline = if let Some(pipeline) = self.info.last_pipeline_bound.clone() {
+            pipeline
+        } else {
+            return Err(
+                "Pipeline was not bound! Pipeline should be bound before descriptor sets".into(),
+            );
+        };
+
+        let layout = pipeline.pipeline_layout.clone();
+
+        self.bindings.push(layout.clone());
 
         unsafe {
             self.command_buffer_allocator
@@ -423,8 +440,8 @@ impl CommandBufferBuilder {
                 .handle
                 .cmd_bind_descriptor_sets(
                     self.handle,
-                    self.info.last_pipeline_bind_point,
-                    pipeline_layout.handle,
+                    pipeline.bind_point,
+                    layout.handle,
                     first_set,
                     &descriptor_sets
                         .iter()
@@ -433,7 +450,7 @@ impl CommandBufferBuilder {
                     &[],
                 );
         }
-        self
+        Ok(self)
     }
 
     pub fn bind_index_buffer(mut self: Box<Self>, buffer: Arc<RwLock<Buffer>>) -> Box<Self> {
@@ -483,18 +500,14 @@ impl CommandBufferBuilder {
     }
 
     pub fn bind_pipeline(mut self: Box<Self>, pipeline: Arc<Pipeline>) -> Box<Self> {
-        self.info.last_pipeline_bind_point = pipeline.bind_point;
+        self.info.last_pipeline_bound = Some(pipeline.clone());
 
         self.bindings.push(pipeline.clone());
         unsafe {
             self.command_buffer_allocator
                 .device
                 .handle
-                .cmd_bind_pipeline(
-                    self.handle,
-                    self.info.last_pipeline_bind_point,
-                    pipeline.handle,
-                )
+                .cmd_bind_pipeline(self.handle, pipeline.bind_point, pipeline.handle)
         };
 
         self
