@@ -6,7 +6,6 @@
 - [x] Safe lifetimes
 - [x] Compute pipeline
 - [ ] Raytracing pipeline
-- [ ] Command buffers compile-time validation
 
 ---
 
