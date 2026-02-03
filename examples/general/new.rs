@@ -260,16 +260,17 @@ impl VulkanContext {
         let command_allocator = CommandBufferAllocator::new(queues.clone()).unwrap();
 
         let (image, image_buffer) = {
-            let file = File::open("examples/resources/textures/test.png").unwrap();
+            let file = File::open("examples/resources/textures/seva.png").unwrap();
             let buf_reader = BufReader::new(file);
-            let decoder = png::Decoder::new(buf_reader);
+            let mut decoder = png::Decoder::new(buf_reader);
+            decoder.set_transformations(png::Transformations::all());
             let mut reader = decoder.read_info().unwrap();
             let size = reader.output_buffer_size().unwrap();
 
             let buffer = Buffer::new(
                 device.clone(),
                 BufferInfo {
-                    size: size as u64,
+                    size: (size * 2) as u64,
                     sharing_mode: vk::SharingMode::EXCLUSIVE,
                     usage: vk::BufferUsageFlags::TRANSFER_SRC,
                     properties: vk::MemoryPropertyFlags::HOST_COHERENT
