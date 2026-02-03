@@ -97,7 +97,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let pipeline = Pipeline::new_compute(pipeline_layout.clone(), shader)?;
 
     let mut lock = buffer_in.write().unwrap();
-    let memory = lock.get_memory(0..512);
+    let memory = lock.bind_memory(0..512).unwrap();
     memory.fill(0);
     drop(lock);
 

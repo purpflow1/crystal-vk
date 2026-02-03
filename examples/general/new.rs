@@ -189,7 +189,7 @@ impl VulkanContext {
         {
             let mut lock = buffer_vertex.write().unwrap();
             let size = lock.info.size;
-            let memory = lock.get_memory(0..size);
+            let memory = lock.bind_memory(0..size).unwrap();
             memory.copy_from_slice(bytemuck::cast_slice(&[
                 // cube bottom
                 VertexTexture([0.5, -0.5, 0.5], [0.0, 0.0]),
@@ -223,7 +223,7 @@ impl VulkanContext {
         {
             let mut lock = buffer_index.write().unwrap();
             let size = lock.info.size;
-            let memory = lock.get_memory(0..size);
+            let memory = lock.bind_memory(0..size).unwrap();
             memory.copy_from_slice(bytemuck::cast_slice::<u16, u8>(&[
                 0, 2, 1, 1, 2, 3, // bottom
                 4, 5, 6, 5, 7, 6, // top
@@ -280,7 +280,7 @@ impl VulkanContext {
             .unwrap();
 
             let mut lock = buffer.write().unwrap();
-            let memory = lock.get_memory(0..size as u64);
+            let memory = lock.bind_memory(0..size as u64).unwrap();
             let info = reader.next_frame(memory).unwrap();
             drop(lock);
 
@@ -367,7 +367,7 @@ impl VulkanContext {
         .unwrap();
 
         let mut lock = buffer_resolution_uniform.write().unwrap();
-        let memory = lock.get_memory(0..8);
+        let memory = lock.bind_memory(0..8).unwrap();
         memory.copy_from_slice(bytemuck::cast_slice(&[
             window.inner_size().width as f32,
             window.inner_size().height as f32,

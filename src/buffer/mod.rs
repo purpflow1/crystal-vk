@@ -22,8 +22,8 @@ pub struct BufferInfo {
 pub struct Buffer {
     pub(super) handle: vk::Buffer,
     memory: vk::DeviceMemory,
-    mapped: *mut u8,
     pub info: BufferInfo,
+    pub mapped: *mut u8,
 
     pub device: Arc<Device>,
 }
@@ -66,25 +66,35 @@ impl Buffer {
 
         unsafe { device.handle.bind_buffer_memory(buffer, device_memory, 0) }?;
 
-        let mapped = unsafe {
-            device
-                .handle
-                .map_memory(device_memory, 0, info.size, vk::MemoryMapFlags::empty())
-        }? as *mut u8;
-
         Ok(Arc::new(RwLock::new(Self {
             handle: buffer,
             memory: device_memory,
-            mapped,
+            mapped: std::ptr::null_mut(),
             info,
             device,
         })))
     }
 
-    pub fn get_memory<'a>(&mut self, range: Range<u64>) -> &'a mut [u8] {
-        unsafe {
-            let ptr = self.mapped.byte_add(range.start as usize);
-            std::slice::from_raw_parts_mut(ptr, (range.end - range.start) as usize)
+    pub fn bind_memory<'a>(&mut self, range: Range<u64>) -> Result<&'a mut [u8], Box<dyn Error>> {
+        if !self.mapped.is_null() {
+            unsafe { self.device.handle.unmap_memory(self.memory) };
+            self.mapped = std::ptr::null_mut();
         }
+
+        let mapped = unsafe {
+            self.device.handle.map_memory(
+                self.memory,
+                range.start,
+                range.end - range.start,
+                vk::MemoryMapFlags::empty(),
+            )
+        }? as *mut u8;
+
+        self.mapped = mapped;
+
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(mapped, (range.end - range.start) as usize) };
+
+        Ok(slice)
     }
 }

@@ -60,11 +60,11 @@ impl VulkanContext {
         let eye = (render_camera * model).to_cols_array();
 
         let size = lock.info.size;
-        let memory = lock.get_memory(0..size);
+        let memory = lock.bind_memory(0..size).unwrap();
         memory.copy_from_slice(bytemuck::cast_slice(&eye));
 
         let mut lock = self.buffer_resolution_uniform.write().unwrap();
-        let memory = lock.get_memory(0..8);
+        let memory = lock.bind_memory(0..8).unwrap();
         memory.copy_from_slice(bytemuck::cast_slice(&[
             self.extent[0] as f32,
             self.extent[1] as f32,
