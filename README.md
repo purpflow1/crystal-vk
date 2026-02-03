@@ -5,7 +5,6 @@
 - [x] Linux, MacOS, Windows support
 - [x] Safe lifetimes
 - [x] Compute pipeline
-- [ ] Raytracing pipeline
 
 ---
 
