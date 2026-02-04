@@ -31,30 +31,16 @@ impl Drop for DescriptorPool {
 impl DescriptorPool {
     pub fn new(
         device: Arc<Device>,
-        descriptor_count: u32,
+        descriptor_sizes: &[vk::DescriptorPoolSize],
     ) -> Result<Arc<Mutex<Self>>, Box<dyn Error>> {
-        // TODO better creation
-        let pool_sizes = [
-            vk::DescriptorPoolSize::default()
-                .descriptor_count(descriptor_count)
-                .ty(vk::DescriptorType::UNIFORM_BUFFER),
-            vk::DescriptorPoolSize::default()
-                .descriptor_count(descriptor_count)
-                .ty(vk::DescriptorType::STORAGE_BUFFER),
-            vk::DescriptorPoolSize::default()
-                .descriptor_count(descriptor_count)
-                .ty(vk::DescriptorType::SAMPLED_IMAGE),
-            vk::DescriptorPoolSize::default()
-                .descriptor_count(descriptor_count)
-                .ty(vk::DescriptorType::COMBINED_IMAGE_SAMPLER),
-            vk::DescriptorPoolSize::default()
-                .descriptor_count(descriptor_count)
-                .ty(vk::DescriptorType::SAMPLER),
-        ];
-
         let pool_info = vk::DescriptorPoolCreateInfo::default()
-            .pool_sizes(&pool_sizes)
-            .max_sets(64 * 3)
+            .pool_sizes(&descriptor_sizes)
+            .max_sets(
+                descriptor_sizes
+                    .iter()
+                    .map(|size| size.descriptor_count)
+                    .sum(),
+            )
             .flags(
                 vk::DescriptorPoolCreateFlags::UPDATE_AFTER_BIND
                     & vk::DescriptorPoolCreateFlags::FREE_DESCRIPTOR_SET,

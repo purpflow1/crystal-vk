@@ -68,7 +68,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     );
 
-    let descriptor_pool = DescriptorPool::new(device.clone(), 2)?;
+    let pool_sizes = [vk::DescriptorPoolSize::default()
+        .ty(vk::DescriptorType::STORAGE_BUFFER)
+        .descriptor_count(2)];
+    let descriptor_pool = DescriptorPool::new(device.clone(), &pool_sizes)?;
     let descriptor_set_layout = DescriptorSetLayout::new(device.clone(), layout_infos)?;
     let descriptor_set =
         DescriptorSet::new(descriptor_pool.clone(), descriptor_set_layout.clone(), 1)?[0].clone();
@@ -134,6 +137,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let future = command_buffer_builder.build(queue)?;
     executor::block_on(future)?;
+
+    let mut data = buffer_out.write().unwrap();
+    dbg!(data.bind_memory(0..4)?);
 
     Ok(())
 }
