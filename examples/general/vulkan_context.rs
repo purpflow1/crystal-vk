@@ -29,6 +29,8 @@ unsafe impl bytemuck::NoUninit for VertexTexture {}
 type FutureType = dyn Future<Output = Result<bool, Box<dyn Error>>> + Send + Sync;
 
 pub struct VulkanContext {
+    pub to_stop: bool,
+
     pub heartbeat: Arc<AtomicBool>,
     pub stop_flag: Arc<AtomicBool>,
     pub watcher: Option<std::thread::JoinHandle<()>>,

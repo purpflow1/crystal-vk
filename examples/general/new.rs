@@ -452,6 +452,7 @@ impl VulkanContext {
 
         (
             Self {
+                to_stop: false,
                 heartbeat: Arc::new(AtomicBool::new(true)),
                 stop_flag: Arc::new(AtomicBool::new(false)),
                 watcher: None,
