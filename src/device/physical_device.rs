@@ -223,14 +223,23 @@ impl PhysicalDevice {
     ) -> Result<(ash::Device, Vec<String>), Box<dyn Error>> {
         let extensions = self.query_extensions_support(enable_swapchain)?;
 
+        dbg!(self.info.queue_families_info.clone());
+
         let mut device_queue_create_infos = Vec::with_capacity(self.info.queue_families_info.len());
 
-        for info in &self.info.queue_families_info {
+        let queue_priorities = self
+            .info
+            .queue_families_info
+            .iter()
+            .map(|info| vec![1.; info.queue_count as usize])
+            .collect::<Vec<_>>();
+
+        for (idx, info) in self.info.queue_families_info.iter().enumerate() {
             // TODO add more queues
             device_queue_create_infos.push(
                 vk::DeviceQueueCreateInfo::default()
                     .queue_family_index(info.index)
-                    .queue_priorities(&[1.]),
+                    .queue_priorities(&queue_priorities[idx]),
             )
         }
 
