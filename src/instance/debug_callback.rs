@@ -38,17 +38,17 @@ unsafe extern "system" fn debug_callback(
             if message_severity.contains(DebugUtilsMessageSeverityFlagsEXT::ERROR) {
                 #[allow(clippy::panic)]
                 {
-                    println!("[FATAL] {message}");
+                    println!("\x1b[91m[FATAL]\x1b[0m {message}");
                     let backtrace = std::backtrace::Backtrace::capture();
                     println!("BACKTRACE:\n{}", backtrace);
                     std::process::exit(1)
                 };
             } else if message_severity.contains(DebugUtilsMessageSeverityFlagsEXT::INFO) {
-                println!("[VALIDATION INFO] {message}");
+                println!("\x1b[92m[VALIDATION INFO]\x1b[0m {message}");
             } else if message_severity.contains(DebugUtilsMessageSeverityFlagsEXT::VERBOSE) {
-                println!("[VALIDATION VERBOSE] {message}");
+                println!("\x1b[92m[VALIDATION VERBOSE]\x1b[0m {message}");
             } else if message_severity.contains(DebugUtilsMessageSeverityFlagsEXT::WARNING) {
-                println!("[VALIDATION WARNING] {message}");
+                println!("\x1b[93m[VALIDATION WARNING]\x1b[0m {message}");
             }
         }
         None => println!("debug callback was called, but invalid callback data was provided"),
