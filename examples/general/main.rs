@@ -20,20 +20,34 @@ use winit::{
 #[derive(Default)]
 struct ContextWindow {
     render_thread: Option<JoinHandle<()>>,
-    context: Option<Arc<Mutex<VulkanContext>>>,
     window: Option<Arc<Window>>,
-    first_run: bool,
+    to_stop: Arc<Mutex<bool>>,
+    extent: Arc<Mutex<[u32; 2]>>,
 }
 
 impl ContextWindow {}
 
 impl ApplicationHandler for ContextWindow {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        let (ctx, window) = VulkanContext::new(event_loop);
+        let (mut ctx, window) = VulkanContext::new(event_loop);
         let window = Arc::new(window);
 
-        self.context = Some(Arc::new(Mutex::new(ctx)));
-        self.render_thread = None;
+        let window_thread = window.clone();
+        let to_stop_thread = self.to_stop.clone();
+        let extent = self.extent.clone();
+
+        let render_thread = std::thread::spawn(move || {
+            while !*to_stop_thread.lock().unwrap() {
+                let extent = extent.lock().unwrap();
+                if extent[0] != 0 {
+                    ctx.extent = *extent;
+                }
+                drop(extent);
+                ctx.render(&window_thread).unwrap();
+            }
+        });
+
+        self.render_thread = Some(render_thread);
         self.window = Some(window);
     }
 
@@ -43,35 +57,16 @@ impl ApplicationHandler for ContextWindow {
         _window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
-        let window = self.window.as_ref().unwrap();
-
         match event {
             WindowEvent::CloseRequested => {
                 println!("Stopping window context with close request");
+                *self.to_stop.lock().unwrap() = true;
                 event_loop.exit();
             }
-            WindowEvent::Resized(_size) => {}
+            WindowEvent::Resized(size) => {
+                *self.extent.lock().unwrap() = [size.width, size.height];
+            }
             WindowEvent::RedrawRequested => {
-                let window_thread = window.clone();
-                let ctx = self.context.clone().unwrap();
-
-                if self.first_run {
-                    let render_thread = std::thread::spawn(move || {
-                        let mut to_stop = false;
-                        while !to_stop {
-                            if let Ok(mut context) = ctx.lock() {
-                                context.render(&window_thread).unwrap();
-                                to_stop = context.to_stop;
-                                let size = window_thread.inner_size();
-                                context.extent = [size.width, size.height]
-                            }
-                        }
-                    });
-
-                    self.render_thread = Some(render_thread);
-                    self.first_run = false;
-                }
-
                 self.window.as_ref().unwrap().request_redraw();
             }
             _ => {
@@ -83,7 +78,6 @@ impl ApplicationHandler for ContextWindow {
     fn exiting(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
         // Wayland surface can be destroyed before vulkan resources removal
         self.render_thread = None;
-        self.context = None;
     }
 }
 
@@ -93,10 +87,7 @@ fn main() {
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Wait);
 
-    let mut context = ContextWindow {
-        first_run: true,
-        ..Default::default()
-    };
+    let mut context = ContextWindow::default();
     event_loop
         .run_app(&mut context)
         .expect("cannot run event loop");
