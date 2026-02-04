@@ -3,7 +3,7 @@ use std::{
     error::Error,
     pin::Pin,
     sync::{Arc, MutexGuard},
-    task::{Context, Poll, Waker},
+    task::{Context, Poll},
 };
 
 use ash::vk;
@@ -26,7 +26,6 @@ pub struct SwapchainFuture<'a> {
 
     submitted: bool,
     completed: bool,
-    waker: Option<Waker>,
 
     suboptimal: bool,
     image_index: u32,
@@ -47,17 +46,11 @@ impl<'a> Future for SwapchainFuture<'a> {
     type Output = Result<(), Box<dyn Error>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if !self.submitted {
-            match self.flush() {
-                Ok(_) => {
-                    self.submitted = true;
-                    self.waker = Some(cx.waker().clone());
-                }
-                Err(e) => {
-                    self.completed = true;
-                    return Poll::Ready(Err(e));
-                }
-            }
+        if !self.submitted
+            && let Err(e) = self.flush()
+        {
+            self.completed = true;
+            return Poll::Ready(Err(e));
         }
 
         match self.check_completion() {
@@ -66,7 +59,7 @@ impl<'a> Future for SwapchainFuture<'a> {
                 Poll::Ready(Ok(()))
             }
             Ok(false) => {
-                self.waker = Some(cx.waker().clone());
+                cx.waker().wake_by_ref();
                 Poll::Pending
             }
             Err(e) => {
@@ -104,10 +97,10 @@ impl<'a> SwapchainFuture<'a> {
             swapchain: swapchain.clone(),
             signal_semaphore,
             fence,
+            #[allow(clippy::missing_transmute_annotations)]
             queue_lock: unsafe { std::mem::transmute(queue_lock) },
             submitted: false,
             completed: false,
-            waker: None,
             suboptimal: false,
             image_index: u32::MAX,
         }))
@@ -145,10 +138,6 @@ impl<'a> SwapchainFuture<'a> {
         }
 
         let result = unsafe { self.device.handle.get_fence_status(self.fence) };
-
-        if let Some(waker) = self.waker.take() {
-            waker.wake();
-        }
 
         match result {
             Ok(true) => {

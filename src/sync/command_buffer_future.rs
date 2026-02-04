@@ -3,7 +3,7 @@ use std::{
     error::Error,
     pin::Pin,
     sync::{Arc, Mutex},
-    task::{Context, Poll, Waker},
+    task::{Context, Poll},
 };
 
 use ash::vk;
@@ -37,8 +37,6 @@ pub struct CommandBufferFuture<'a> {
     swapchain: Option<Arc<Swapchain>>,
 
     locked_queue: MutexGuard<'a, Queue>,
-
-    waker: Option<Waker>,
 }
 
 unsafe impl<'a> Send for CommandBufferFuture<'a> {}
@@ -75,17 +73,11 @@ impl<'a> Future for CommandBufferFuture<'a> {
     type Output = Result<bool, Box<dyn Error>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if !self.submitted {
-            match self.flush() {
-                Ok(()) => {
-                    self.submitted = true;
-                    self.waker = Some(cx.waker().clone());
-                }
-                Err(e) => {
-                    self.completed = true;
-                    return Poll::Ready(Err(e));
-                }
-            }
+        if !self.submitted
+            && let Err(e) = self.flush()
+        {
+            self.completed = true;
+            return Poll::Ready(Err(e));
         }
 
         match self.check_completion() {
@@ -94,10 +86,11 @@ impl<'a> Future for CommandBufferFuture<'a> {
                 Poll::Ready(Ok(self.suboptimal))
             }
             Ok(false) => {
-                self.waker = Some(cx.waker().clone());
+                cx.waker().wake_by_ref();
                 Poll::Pending
             }
             Err(e) => {
+                dbg!("error");
                 self.completed = true;
                 Poll::Ready(Err(e))
             }
@@ -161,11 +154,11 @@ impl<'a> CommandBufferFuture<'a> {
             image_index: u32::MAX,
             swapchain: None,
 
+            #[allow(clippy::missing_transmute_annotations)]
             locked_queue: unsafe { std::mem::transmute(queue.lock().unwrap()) },
 
             submitted: false,
             completed: false,
-            waker: None,
         }))
     }
 
@@ -175,10 +168,6 @@ impl<'a> CommandBufferFuture<'a> {
         }
 
         let result = unsafe { self.device.handle.get_fence_status(self.fence) };
-
-        if let Some(waker) = self.waker.take() {
-            waker.wake();
-        }
 
         match result {
             Ok(true) => {
@@ -190,9 +179,9 @@ impl<'a> CommandBufferFuture<'a> {
         }
     }
 
-    pub fn flush(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn flush(&mut self) -> Result<bool, Box<dyn Error>> {
         if self.submitted {
-            return Ok(());
+            return Ok(self.suboptimal);
         }
 
         let command_buffers = [self.builder.handle];
@@ -217,7 +206,7 @@ impl<'a> CommandBufferFuture<'a> {
 
         self.submitted = true;
 
-        Ok(())
+        Ok(suboptimal)
     }
 
     pub fn wait(&mut self) -> Result<(), Box<dyn Error>> {
