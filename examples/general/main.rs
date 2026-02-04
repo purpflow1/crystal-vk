@@ -91,7 +91,7 @@ fn main() {
     unsafe { std::env::set_var("RUST_BACKTRACE", "1") };
 
     let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Poll);
+    event_loop.set_control_flow(ControlFlow::Wait);
 
     let mut context = ContextWindow {
         first_run: true,
