@@ -43,9 +43,7 @@ unsafe impl<'a> Send for CommandBufferFuture<'a> {}
 
 impl<'a> Drop for CommandBufferFuture<'a> {
     fn drop(&mut self) {
-        if self.submitted && !self.completed {
-            self.queue_lock.wait_idle().unwrap();
-        }
+        self.queue_lock.wait_idle().unwrap();
 
         unsafe {
             self.device.handle.destroy_fence(self.fence, None);
