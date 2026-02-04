@@ -7,7 +7,6 @@ use std::{
 };
 
 use ash::vk;
-use std::sync::MutexGuard;
 
 use crate::{
     command::command_buffer_builder::CommandBufferBuilder,
@@ -16,9 +15,7 @@ use crate::{
     sync::{GpuFuture, Semaphore},
 };
 
-/// # Safety
-/// `Queue` is locked the whole time, this future exists
-pub struct CommandBufferFuture<'a> {
+pub struct CommandBufferFuture {
     device: Arc<Device>,
 
     fence: vk::Fence,
@@ -36,14 +33,15 @@ pub struct CommandBufferFuture<'a> {
     image_index: u32,
     swapchain: Option<Arc<Swapchain>>,
 
-    queue_lock: MutexGuard<'a, Queue>,
+    queue: Arc<Mutex<Queue>>,
 }
 
-unsafe impl<'a> Send for CommandBufferFuture<'a> {}
+unsafe impl Send for CommandBufferFuture {}
 
-impl<'a> Drop for CommandBufferFuture<'a> {
+impl Drop for CommandBufferFuture {
     fn drop(&mut self) {
-        self.queue_lock.wait_idle().unwrap();
+        let mut lock = self.queue.lock().unwrap();
+        lock.wait_idle().unwrap();
 
         unsafe {
             self.device.handle.destroy_fence(self.fence, None);
@@ -51,7 +49,7 @@ impl<'a> Drop for CommandBufferFuture<'a> {
     }
 }
 
-impl<'a> GpuFuture for CommandBufferFuture<'a> {
+impl<'a> GpuFuture for CommandBufferFuture {
     fn get_signal_semaphores(&self) -> VecDeque<Arc<Semaphore>> {
         self.signal_semaphores.clone()
     }
@@ -63,7 +61,7 @@ impl<'a> GpuFuture for CommandBufferFuture<'a> {
     }
 }
 
-impl<'a> Future for CommandBufferFuture<'a> {
+impl Future for CommandBufferFuture {
     type Output = Result<bool, Box<dyn Error>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -92,7 +90,7 @@ impl<'a> Future for CommandBufferFuture<'a> {
     }
 }
 
-impl<'a> CommandBufferFuture<'a> {
+impl CommandBufferFuture {
     pub fn then_present(
         mut self: Box<Self>,
         swapchain: Arc<Swapchain>,
@@ -116,7 +114,9 @@ impl<'a> CommandBufferFuture<'a> {
             .image_indices(&image_indices);
 
         let suboptimal = self
-            .queue_lock
+            .queue
+            .lock()
+            .unwrap()
             .present(&present_info, self.swapchain.clone().unwrap())?;
 
         Ok(suboptimal)
@@ -148,8 +148,7 @@ impl<'a> CommandBufferFuture<'a> {
             image_index: u32::MAX,
             swapchain: None,
 
-            #[allow(clippy::missing_transmute_annotations)]
-            queue_lock: unsafe { std::mem::transmute(queue.lock().unwrap()) },
+            queue: queue.clone(),
 
             submitted: false,
             completed: false,
@@ -193,7 +192,9 @@ impl<'a> CommandBufferFuture<'a> {
             .command_buffers(&command_buffers)
             .signal_semaphores(&signal_semaphores_vec);
 
-        self.queue_lock.submit(&[submit_info], self.fence)?;
+        let mut lock = self.queue.lock().unwrap();
+        lock.submit(&[submit_info], self.fence)?;
+        drop(lock);
 
         let suboptimal = if self.present { self.present()? } else { false };
         self.suboptimal = suboptimal;

@@ -55,7 +55,19 @@ impl VulkanContext {
         let swapchain = Swapchain::new(present_queue, [600, 600], true).unwrap();
         let swapchain_images = swapchain.image_sequence.clone();
 
-        let descriptor_pool = DescriptorPool::new(device.clone(), 3).unwrap();
+        let pool_sizes = [
+            vk::DescriptorPoolSize::default()
+                .descriptor_count(3)
+                .ty(vk::DescriptorType::UNIFORM_BUFFER),
+            vk::DescriptorPoolSize::default()
+                .descriptor_count(3)
+                .ty(vk::DescriptorType::STORAGE_BUFFER),
+            vk::DescriptorPoolSize::default()
+                .descriptor_count(3)
+                .ty(vk::DescriptorType::COMBINED_IMAGE_SAMPLER),
+        ];
+
+        let descriptor_pool = DescriptorPool::new(device.clone(), &pool_sizes).unwrap();
 
         let mut layout_alloc_infos = BTreeMap::new();
         layout_alloc_infos.insert(
