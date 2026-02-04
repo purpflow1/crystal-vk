@@ -28,10 +28,10 @@ pub struct CommandBufferBuilder {
 }
 
 impl CommandBufferBuilder {
-    pub fn build(
+    pub fn build<'a>(
         self: Box<Self>,
         queue: Arc<Mutex<Queue>>,
-    ) -> Result<Box<CommandBufferFuture>, Box<dyn Error>> {
+    ) -> Result<Box<CommandBufferFuture<'a>>, Box<dyn Error>> {
         if self.render_pass_begun {
             self.end_render_pass();
         }

@@ -6,7 +6,7 @@ use std::{
 
 use ash::vk;
 
-use crate::device::Device;
+use crate::{device::Device, render::swapchain::Swapchain};
 
 pub type QueuePool = BTreeMap<QueueFamilyInfo, Vec<Arc<Mutex<Queue>>>>;
 
@@ -21,7 +21,7 @@ pub struct QueueFamilyInfo {
 impl QueueFamilyInfo {}
 
 pub struct Queue {
-    pub(crate) handle: vk::Queue,
+    handle: vk::Queue,
     pub device: Arc<Device>,
 }
 
@@ -34,6 +34,14 @@ impl Drop for Queue {
 }
 
 impl Queue {
+    pub fn present(
+        &self,
+        present_info: &vk::PresentInfoKHR,
+        swapchain: Arc<Swapchain>,
+    ) -> Result<bool, Box<dyn Error>> {
+        Ok(unsafe { swapchain.swapchain.queue_present(self.handle, present_info) }?)
+    }
+
     pub fn submit(
         &mut self,
         submit_info: &[vk::SubmitInfo],

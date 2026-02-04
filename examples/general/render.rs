@@ -3,6 +3,7 @@ use std::{error::Error, f32::consts::PI, sync::atomic::Ordering, time::Duration}
 use crystal_vk::{
     command::command_buffer_builder::CommandBufferBuilder,
     render::{RenderTarget, swapchain::Swapchain},
+    sync::SwapchainFuture,
     vk,
 };
 use futures::executor;
@@ -130,7 +131,7 @@ impl VulkanContext {
             .unwrap();
         }
 
-        let mut swapchain_future = self.swapchain.acquire_next_image().unwrap();
+        let mut swapchain_future = SwapchainFuture::new(self.swapchain.clone()).unwrap();
 
         let (image_index, out_of_date) = match swapchain_future.flush() {
             Ok(result) => (result.0, false),

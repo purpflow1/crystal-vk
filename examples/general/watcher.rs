@@ -26,7 +26,7 @@ pub fn watcher(
 
             // Check if worker has hung
             if Instant::now().duration_since(last_heartbeat) > hang_timeout {
-                println!("Watcher: the main thread hung!");
+                println!("\x1b[91mWatcher: the main thread hung!");
                 println!("Watcher: Terminating process");
                 process::exit(1);
             }

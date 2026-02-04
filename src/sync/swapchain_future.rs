@@ -2,21 +2,24 @@ use std::{
     collections::VecDeque,
     error::Error,
     pin::Pin,
-    sync::Arc,
+    sync::{Arc, MutexGuard},
     task::{Context, Poll, Waker},
 };
 
 use ash::vk;
 
 use crate::{
-    device::Device,
+    device::{Device, queue::Queue},
     render::swapchain::Swapchain,
     sync::{GpuFuture, Semaphore},
 };
 
-pub struct SwapchainFuture {
+/// # Safety
+/// `Queue` is locked the whole time, this future exists
+pub struct SwapchainFuture<'a> {
     device: Arc<Device>,
     swapchain: Arc<Swapchain>,
+    queue_lock: MutexGuard<'a, Queue>,
 
     signal_semaphore: Arc<Semaphore>,
     fence: vk::Fence,
@@ -29,14 +32,10 @@ pub struct SwapchainFuture {
     image_index: u32,
 }
 
-impl Drop for SwapchainFuture {
+impl<'a> Drop for SwapchainFuture<'a> {
     fn drop(&mut self) {
         if self.submitted && !self.completed {
-            let _ = unsafe {
-                self.device
-                    .handle
-                    .wait_for_fences(&[self.fence], true, u64::MAX)
-            };
+            self.queue_lock.wait_idle().unwrap();
         }
         unsafe {
             self.device.handle.destroy_fence(self.fence, None);
@@ -44,7 +43,7 @@ impl Drop for SwapchainFuture {
     }
 }
 
-impl Future for SwapchainFuture {
+impl<'a> Future for SwapchainFuture<'a> {
     type Output = Result<(), Box<dyn Error>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -78,7 +77,7 @@ impl Future for SwapchainFuture {
     }
 }
 
-impl GpuFuture for SwapchainFuture {
+impl<'a> GpuFuture for SwapchainFuture<'a> {
     fn get_signal_semaphores(&self) -> VecDeque<Arc<Semaphore>> {
         let mut deque = VecDeque::new();
         deque.push_back(self.signal_semaphore.clone());
@@ -88,20 +87,24 @@ impl GpuFuture for SwapchainFuture {
     fn set_wait_semaphores(&mut self, _semaphores: VecDeque<Arc<Semaphore>>) {}
 }
 
-impl SwapchainFuture {
-    pub(crate) fn new(
-        device: Arc<Device>,
-        swapchain: Arc<Swapchain>,
-    ) -> Result<Box<Self>, Box<dyn Error>> {
-        let signal_semaphore = Semaphore::new(device.clone())?;
+impl<'a> SwapchainFuture<'a> {
+    pub fn new(swapchain: Arc<Swapchain>) -> Result<Box<Self>, Box<dyn Error>> {
+        let queue_lock = swapchain.present_queue.lock().unwrap();
+        let signal_semaphore = Semaphore::new(queue_lock.device.clone())?;
         let fence_create_info = vk::FenceCreateInfo::default();
-        let fence = unsafe { device.handle.create_fence(&fence_create_info, None)? };
+        let fence = unsafe {
+            queue_lock
+                .device
+                .handle
+                .create_fence(&fence_create_info, None)?
+        };
 
         Ok(Box::new(Self {
-            device,
-            swapchain,
+            device: queue_lock.device.clone(),
+            swapchain: swapchain.clone(),
             signal_semaphore,
             fence,
+            queue_lock: unsafe { std::mem::transmute(queue_lock) },
             submitted: false,
             completed: false,
             waker: None,
