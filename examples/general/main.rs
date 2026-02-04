@@ -35,6 +35,9 @@ impl ApplicationHandler for ContextWindow {
         let window_thread = window.clone();
         let to_stop_thread = self.to_stop.clone();
         let extent = self.extent.clone();
+        let scale_factor = window_thread.scale_factor();
+
+        dbg!(scale_factor);
 
         let render_thread = std::thread::spawn(move || {
             while !*to_stop_thread.lock().unwrap() {

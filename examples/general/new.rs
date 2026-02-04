@@ -52,7 +52,7 @@ impl VulkanContext {
             .unwrap()[0]
             .clone();
 
-        let swapchain = Swapchain::new(present_queue, [600, 600], true).unwrap();
+        let swapchain = Swapchain::new(present_queue, [150, 150], true).unwrap();
         let swapchain_images = swapchain.image_sequence.clone();
 
         let pool_sizes = [
@@ -492,6 +492,7 @@ impl VulkanContext {
                 prev_future: None,
 
                 extent: [1200, 800],
+                extent_changed: false,
             },
             window,
         )

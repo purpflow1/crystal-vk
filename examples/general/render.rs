@@ -77,7 +77,7 @@ impl VulkanContext {
             .find(|(family, _)| family.flags.contains(vk::QueueFlags::GRAPHICS))
             .unwrap();
 
-        let (suboptimal, out_of_date) = if let Some(future) = &mut self.prev_future {
+        let (suboptimal, mut out_of_date) = if let Some(future) = &mut self.prev_future {
             match executor::block_on(future) {
                 Ok(suboptimal) => (suboptimal, false),
                 Err(e) => {
@@ -90,6 +90,11 @@ impl VulkanContext {
         };
 
         self.prev_future = None;
+
+        if self.extent_changed {
+            out_of_date = true;
+            self.extent_changed = false
+        }
 
         let queue = queues[0].clone();
 

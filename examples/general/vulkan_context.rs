@@ -57,5 +57,6 @@ pub struct VulkanContext {
     pub timeline: timeline::Timeline,
     pub first_frame: bool,
 
+    pub extent_changed: bool,
     pub extent: [u32; 2],
 }
