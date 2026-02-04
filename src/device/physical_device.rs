@@ -235,7 +235,6 @@ impl PhysicalDevice {
             .collect::<Vec<_>>();
 
         for (idx, info) in self.info.queue_families_info.iter().enumerate() {
-            // TODO add more queues
             device_queue_create_infos.push(
                 vk::DeviceQueueCreateInfo::default()
                     .queue_family_index(info.index)
