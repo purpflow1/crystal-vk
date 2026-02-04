@@ -36,7 +36,7 @@ pub struct CommandBufferFuture<'a> {
     image_index: u32,
     swapchain: Option<Arc<Swapchain>>,
 
-    locked_queue: MutexGuard<'a, Queue>,
+    queue_lock: MutexGuard<'a, Queue>,
 }
 
 unsafe impl<'a> Send for CommandBufferFuture<'a> {}
@@ -44,11 +44,7 @@ unsafe impl<'a> Send for CommandBufferFuture<'a> {}
 impl<'a> Drop for CommandBufferFuture<'a> {
     fn drop(&mut self) {
         if self.submitted && !self.completed {
-            let _ = unsafe {
-                self.device
-                    .handle
-                    .wait_for_fences(&[self.fence], true, u64::MAX)
-            };
+            self.queue_lock.wait_idle().unwrap();
         }
 
         unsafe {
@@ -122,7 +118,7 @@ impl<'a> CommandBufferFuture<'a> {
             .image_indices(&image_indices);
 
         let suboptimal = self
-            .locked_queue
+            .queue_lock
             .present(&present_info, self.swapchain.clone().unwrap())?;
 
         Ok(suboptimal)
@@ -155,7 +151,7 @@ impl<'a> CommandBufferFuture<'a> {
             swapchain: None,
 
             #[allow(clippy::missing_transmute_annotations)]
-            locked_queue: unsafe { std::mem::transmute(queue.lock().unwrap()) },
+            queue_lock: unsafe { std::mem::transmute(queue.lock().unwrap()) },
 
             submitted: false,
             completed: false,
@@ -199,7 +195,7 @@ impl<'a> CommandBufferFuture<'a> {
             .command_buffers(&command_buffers)
             .signal_semaphores(&signal_semaphores_vec);
 
-        self.locked_queue.submit(&[submit_info], self.fence)?;
+        self.queue_lock.submit(&[submit_info], self.fence)?;
 
         let suboptimal = if self.present { self.present()? } else { false };
         self.suboptimal = suboptimal;
