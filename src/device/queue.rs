@@ -27,12 +27,6 @@ pub struct Queue {
 
 unsafe impl Send for Queue {}
 
-impl Drop for Queue {
-    fn drop(&mut self) {
-        self.wait_idle().unwrap();
-    }
-}
-
 impl Queue {
     pub fn present(
         &self,

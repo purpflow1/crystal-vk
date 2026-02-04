@@ -33,6 +33,7 @@ impl DescriptorPool {
         device: Arc<Device>,
         descriptor_count: u32,
     ) -> Result<Arc<Mutex<Self>>, Box<dyn Error>> {
+        // TODO better creation
         let pool_sizes = [
             vk::DescriptorPoolSize::default()
                 .descriptor_count(descriptor_count)
@@ -43,6 +44,12 @@ impl DescriptorPool {
             vk::DescriptorPoolSize::default()
                 .descriptor_count(descriptor_count)
                 .ty(vk::DescriptorType::SAMPLED_IMAGE),
+            vk::DescriptorPoolSize::default()
+                .descriptor_count(descriptor_count)
+                .ty(vk::DescriptorType::COMBINED_IMAGE_SAMPLER),
+            vk::DescriptorPoolSize::default()
+                .descriptor_count(descriptor_count)
+                .ty(vk::DescriptorType::SAMPLER),
         ];
 
         let pool_info = vk::DescriptorPoolCreateInfo::default()
