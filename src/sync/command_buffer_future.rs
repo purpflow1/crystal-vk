@@ -49,7 +49,7 @@ impl Drop for CommandBufferFuture {
     }
 }
 
-impl<'a> GpuFuture for CommandBufferFuture {
+impl GpuFuture for CommandBufferFuture {
     fn get_signal_semaphores(&self) -> VecDeque<Arc<Semaphore>> {
         self.signal_semaphores.clone()
     }

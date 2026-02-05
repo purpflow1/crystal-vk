@@ -34,7 +34,7 @@ impl DescriptorPool {
         descriptor_sizes: &[vk::DescriptorPoolSize],
     ) -> Result<Arc<Mutex<Self>>, Box<dyn Error>> {
         let pool_info = vk::DescriptorPoolCreateInfo::default()
-            .pool_sizes(&descriptor_sizes)
+            .pool_sizes(descriptor_sizes)
             .max_sets(
                 descriptor_sizes
                     .iter()
