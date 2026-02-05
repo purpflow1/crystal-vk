@@ -138,8 +138,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let future = command_buffer_builder.build(queue)?;
     executor::block_on(future)?;
 
-    let mut data = buffer_out.write().unwrap();
-    dbg!(data.bind_memory(0..4)?);
+    let mut lock = buffer_out.write().unwrap();
+    let memory = lock.bind_memory(0..size_of::<u32>() as u64 * 8)?;
+    let data: &[u32] = bytemuck::cast_slice(memory);
+    dbg!(data);
 
     Ok(())
 }
