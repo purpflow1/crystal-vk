@@ -23,7 +23,10 @@ crystal-vk = "0.0.4"
 ```
 Here is a minimal example showing how to create a Vulkan device:
 ```rust
-pub fn new(event_loop: &winit::event_loop::ActiveEventLoop) -> (Self, Window) {
+use winit::{dpi::LogicalSize, window::Window};
+use crystal_vk::device::Device;
+
+pub fn new(event_loop: &winit::event_loop::ActiveEventLoop) {
     // winit window creation
     let window = {
         event_loop
