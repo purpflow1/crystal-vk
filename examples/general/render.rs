@@ -222,7 +222,7 @@ impl VulkanContext {
         .draw_indexed(6, 1, 36, 8, 0)
         .unwrap();
 
-        // blocking on swapchain to complete acquiring 
+        // blocking on swapchain to complete acquiring
         executor::block_on(swapchain_future).unwrap();
 
         let mut command_buffer_future = builder
