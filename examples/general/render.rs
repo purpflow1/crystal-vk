@@ -222,15 +222,17 @@ impl VulkanContext {
         .draw_indexed(6, 1, 36, 8, 0)
         .unwrap();
 
+        // blocking on swapchain to complete acquiring 
         executor::block_on(swapchain_future).unwrap();
 
-        let command_buffer_future = builder
+        let mut command_buffer_future = builder
             .build(queue)
             .unwrap()
             .then_present(self.swapchain.clone(), image_index)
             .unwrap();
 
-        // command_buffer_future.flush().unwrap();
+        // submitting command buffer
+        command_buffer_future.flush().unwrap();
 
         self.prev_future = Some(Box::pin(command_buffer_future));
 
