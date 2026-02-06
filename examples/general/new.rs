@@ -318,20 +318,17 @@ impl VulkanContext {
             })
             .unwrap();
 
-        let mut future = CommandBufferBuilder::new(
-            command_allocator.clone(),
-            transfer_queue_family_info.index,
-            vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
-        )
-        .unwrap()
-        .transition_image_layout(image.clone(), vk::ImageLayout::TRANSFER_DST_OPTIMAL)
-        .unwrap()
-        .stage_image(image.clone(), image_buffer.clone())
-        .unwrap()
-        .generate_mipmaps(image.clone())
-        .unwrap()
-        .build(transfer_queue)
-        .unwrap();
+        let mut future =
+            CommandBufferBuilder::new(command_allocator.clone(), transfer_queue_family_info.index)
+                .unwrap()
+                .transition_image_layout(image.clone(), vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                .unwrap()
+                .stage_image(image.clone(), image_buffer.clone())
+                .unwrap()
+                .generate_mipmaps(image.clone())
+                .unwrap()
+                .build(transfer_queue)
+                .unwrap();
 
         future.flush().unwrap();
         future.wait().unwrap();

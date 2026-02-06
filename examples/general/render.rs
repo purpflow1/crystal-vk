@@ -183,44 +183,40 @@ impl VulkanContext {
             return Ok(());
         }
 
-        let builder = CommandBufferBuilder::new(
-            self.command_allocator.clone(),
-            family_info.index,
-            vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
-        )
-        .unwrap()
-        .bind_render_target(self.post_process_render_target.clone(), 0)
-        .unwrap()
-        .bind_viewport_and_scissor(
-            vec![vk::Viewport {
-                width: self.extent[0] as f32,
-                height: self.extent[1] as f32,
-                ..Default::default()
-            }],
-            vec![vk::Rect2D {
-                extent: vk::Extent2D {
-                    width: self.extent[0],
-                    height: self.extent[1],
-                },
-                ..Default::default()
-            }],
-        )
-        .bind_pipeline(self.pipeline.clone())
-        .bind_vertex_buffer(self.buffer_vert.clone())
-        .unwrap()
-        .bind_index_buffer(self.buffer_ind.clone())
-        .unwrap()
-        .bind_descriptor_sets(0, vec![self.per_object_descriptor_set.clone()])
-        .unwrap()
-        .draw_indexed(36, 1, 0, 0, 0)
-        .unwrap()
-        .bind_render_target(self.swapchain_render_target.clone(), image_index)
-        .unwrap()
-        .bind_pipeline(self.post_process_pipeline.clone())
-        .bind_descriptor_sets(0, vec![self.post_process_descriptor_set.clone()])
-        .unwrap()
-        .draw_indexed(6, 1, 36, 8, 0)
-        .unwrap();
+        let builder = CommandBufferBuilder::new(self.command_allocator.clone(), family_info.index)
+            .unwrap()
+            .bind_render_target(self.post_process_render_target.clone(), 0)
+            .unwrap()
+            .bind_viewport_and_scissor(
+                vec![vk::Viewport {
+                    width: self.extent[0] as f32,
+                    height: self.extent[1] as f32,
+                    ..Default::default()
+                }],
+                vec![vk::Rect2D {
+                    extent: vk::Extent2D {
+                        width: self.extent[0],
+                        height: self.extent[1],
+                    },
+                    ..Default::default()
+                }],
+            )
+            .bind_pipeline(self.pipeline.clone())
+            .bind_vertex_buffer(self.buffer_vert.clone())
+            .unwrap()
+            .bind_index_buffer(self.buffer_ind.clone())
+            .unwrap()
+            .bind_descriptor_sets(0, vec![self.per_object_descriptor_set.clone()])
+            .unwrap()
+            .draw_indexed(36, 1, 0, 0, 0)
+            .unwrap()
+            .bind_render_target(self.swapchain_render_target.clone(), image_index)
+            .unwrap()
+            .bind_pipeline(self.post_process_pipeline.clone())
+            .bind_descriptor_sets(0, vec![self.post_process_descriptor_set.clone()])
+            .unwrap()
+            .draw_indexed(6, 1, 36, 8, 0)
+            .unwrap();
 
         // blocking on swapchain to complete acquiring
         executor::block_on(swapchain_future).unwrap();

@@ -116,11 +116,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         .unwrap();
 
     let command_buffer_allocator = CommandBufferAllocator::new(queues)?;
-    let command_buffer_builder = CommandBufferBuilder::new(
-        command_buffer_allocator,
-        queue_info.index,
-        vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
-    )?;
+    let command_buffer_builder =
+        CommandBufferBuilder::new(command_buffer_allocator, queue_info.index)?;
 
     {
         let mut lock = descriptor_set.lock().unwrap();

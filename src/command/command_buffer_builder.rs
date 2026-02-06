@@ -49,7 +49,6 @@ impl CommandBufferBuilder {
     pub fn new(
         command_buffer_allocator: Arc<CommandBufferAllocator>,
         queue_family_index: u32,
-        flags: vk::CommandBufferUsageFlags,
     ) -> Result<Box<Self>, Box<dyn Error>> {
         let command_pool = command_buffer_allocator
             .pools
@@ -70,7 +69,8 @@ impl CommandBufferBuilder {
                 .allocate_command_buffers(&alloc_info)
         }?[0];
 
-        let begin_info = vk::CommandBufferBeginInfo::default().flags(flags);
+        let begin_info = vk::CommandBufferBeginInfo::default()
+            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
         unsafe {
             command_buffer_allocator
