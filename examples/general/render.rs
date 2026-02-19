@@ -185,8 +185,7 @@ impl VulkanContext {
 
         let builder = CommandBufferBuilder::new(self.command_allocator.clone(), family_info.index)
             .unwrap()
-            .bind_render_target(self.post_process_render_target.clone(), 0)
-            .unwrap()
+            .begin_render_pass(self.post_process_render_target.clone(), 0)
             .bind_viewport_and_scissor(
                 vec![vk::Viewport {
                     width: self.extent[0] as f32,
@@ -207,16 +206,13 @@ impl VulkanContext {
             .bind_index_buffer(self.buffer_ind.clone())
             .unwrap()
             .bind_descriptor_sets(0, vec![self.per_object_descriptor_set.clone()])
-            .unwrap()
             .draw_indexed(36, 1, 0, 0, 0)
-            .unwrap()
-            .bind_render_target(self.swapchain_render_target.clone(), image_index)
-            .unwrap()
+            .end_render_pass()
+            .begin_render_pass(self.swapchain_render_target.clone(), image_index)
             .bind_pipeline(self.post_process_pipeline.clone())
             .bind_descriptor_sets(0, vec![self.post_process_descriptor_set.clone()])
-            .unwrap()
             .draw_indexed(6, 1, 36, 8, 0)
-            .unwrap();
+            .end_render_pass();
 
         // blocking on swapchain to complete acquiring
         executor::block_on(swapchain_future).unwrap();

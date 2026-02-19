@@ -1,5 +1,6 @@
 use std::{
     error::Error,
+    marker::PhantomData,
     sync::{Arc, Mutex, RwLock},
 };
 
@@ -16,26 +17,45 @@ use crate::{
     traits::CommandBufferBinding,
 };
 
-/// # Safety
-/// Everything is boxed
-pub struct CommandBufferBuilder {
+pub trait BuilderState {}
+pub trait PipelineBoundState: BuilderState {}
+pub trait AbleToPipelineBind: BuilderState {}
+pub trait RenderPassBound: BuilderState {}
+
+pub struct Idle;
+impl BuilderState for Idle {}
+impl AbleToPipelineBind for Idle {}
+
+pub struct PipelineBound;
+impl BuilderState for PipelineBound {}
+impl PipelineBoundState for PipelineBound {}
+impl AbleToPipelineBind for PipelineBound {}
+
+pub struct InRenderPass;
+impl BuilderState for InRenderPass {}
+impl RenderPassBound for InRenderPass {}
+impl AbleToPipelineBind for InRenderPass {}
+
+pub struct InRenderPassWithPipeline;
+impl BuilderState for InRenderPassWithPipeline {}
+impl PipelineBoundState for InRenderPassWithPipeline {}
+impl RenderPassBound for InRenderPassWithPipeline {}
+
+pub struct CommandBufferBuilder<State: BuilderState = Idle> {
     pub(crate) handle: vk::CommandBuffer,
     pub(crate) command_buffer_allocator: Arc<CommandBufferAllocator>,
 
     bindings: Vec<Arc<dyn CommandBufferBinding>>,
     last_pipeline_bound: Option<Arc<Pipeline>>,
-    render_pass_begun: bool,
+
+    _state: PhantomData<State>,
 }
 
-impl CommandBufferBuilder {
+impl CommandBufferBuilder<Idle> {
     pub fn build(
         self: Box<Self>,
         queue: Arc<Mutex<Queue>>,
     ) -> Result<Box<CommandBufferFuture>, Box<dyn Error>> {
-        if self.render_pass_begun {
-            self.end_render_pass();
-        }
-
         unsafe {
             self.command_buffer_allocator
                 .device
@@ -84,10 +104,281 @@ impl CommandBufferBuilder {
             command_buffer_allocator,
             bindings: Vec::new(),
             last_pipeline_bound: None,
-            render_pass_begun: false,
+            _state: PhantomData,
         }))
     }
 
+    pub fn begin_render_pass(
+        mut self: Box<Self>,
+        render_target: Arc<RenderTarget>,
+        image_index: u32,
+    ) -> Box<CommandBufferBuilder<InRenderPass>> {
+        self.bindings.push(render_target.clone());
+        let color = 0.3f32;
+        let clear_value_color = vk::ClearValue {
+            color: vk::ClearColorValue {
+                float32: [color, color, color, 1.],
+            },
+        };
+
+        let clear_value_stencil = vk::ClearValue {
+            depth_stencil: vk::ClearDepthStencilValue::default().depth(1.).stencil(0),
+        };
+
+        let clear_values = &[clear_value_color, clear_value_stencil];
+
+        let framebuffer_lock = render_target.framebuffer.read().unwrap();
+        let render_pass_begin_info = vk::RenderPassBeginInfo::default()
+            .render_pass(framebuffer_lock.render_pass.handle)
+            .framebuffer(framebuffer_lock.get_framebuffer(image_index))
+            .render_area(vk::Rect2D {
+                offset: vk::Offset2D::default().x(0).y(0),
+                extent: vk::Extent2D {
+                    width: framebuffer_lock.attachments[0].info.extent[0],
+                    height: framebuffer_lock.attachments[0].info.extent[1],
+                },
+            })
+            .clear_values(clear_values);
+
+        unsafe {
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_begin_render_pass(
+                    self.handle,
+                    &render_pass_begin_info,
+                    vk::SubpassContents::INLINE,
+                )
+        }
+
+        Box::new(CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            last_pipeline_bound: self.last_pipeline_bound,
+            _state: PhantomData,
+        })
+    }
+}
+
+impl<State: PipelineBoundState> CommandBufferBuilder<State> {
+    pub fn bind_descriptor_sets(
+        mut self: Box<Self>,
+        first_set: u32,
+        descriptor_sets: Vec<Arc<Mutex<DescriptorSet>>>,
+    ) -> Box<Self> {
+        for descriptor_set in descriptor_sets.iter() {
+            self.bindings.push(descriptor_set.clone());
+        }
+
+        let pipeline = self.last_pipeline_bound.clone().unwrap();
+
+        let layout = pipeline.pipeline_layout.clone();
+
+        self.bindings.push(layout.clone());
+
+        unsafe {
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_bind_descriptor_sets(
+                    self.handle,
+                    pipeline.bind_point,
+                    layout.handle,
+                    first_set,
+                    &descriptor_sets
+                        .iter()
+                        .map(|set| set.lock().unwrap().handle)
+                        .collect::<Vec<_>>(),
+                    &[],
+                );
+        }
+
+        self
+    }
+}
+
+impl<State: AbleToPipelineBind> CommandBufferBuilder<State> {
+    pub fn bind_pipeline<OutState: PipelineBoundState>(
+        mut self: Box<Self>,
+        pipeline: Arc<Pipeline>,
+    ) -> Box<CommandBufferBuilder<OutState>> {
+        self.last_pipeline_bound = Some(pipeline.clone());
+
+        self.bindings.push(pipeline.clone());
+        unsafe {
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_bind_pipeline(self.handle, pipeline.bind_point, pipeline.handle)
+        };
+
+        Box::new(CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            last_pipeline_bound: self.last_pipeline_bound,
+            _state: PhantomData,
+        })
+    }
+}
+
+impl CommandBufferBuilder<PipelineBound> {
+    pub fn dispatch(self: Box<Self>, group_count: [u32; 3]) -> Box<CommandBufferBuilder<Idle>> {
+        unsafe {
+            self.command_buffer_allocator.device.handle.cmd_dispatch(
+                self.handle,
+                group_count[0],
+                group_count[1],
+                group_count[2],
+            );
+        }
+
+        Box::new(CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            last_pipeline_bound: self.last_pipeline_bound,
+            _state: PhantomData,
+        })
+    }
+}
+
+impl<State: RenderPassBound> CommandBufferBuilder<State> {
+    pub fn bind_viewport_and_scissor(
+        self: Box<Self>,
+        viewports: Vec<vk::Viewport>,
+        scissors: Vec<vk::Rect2D>,
+    ) -> Box<Self> {
+        unsafe {
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_set_viewport(self.handle, 0, &viewports);
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_set_scissor(self.handle, 0, &scissors);
+        }
+        self
+    }
+
+    pub fn bind_index_buffer(
+        mut self: Box<Self>,
+        buffer: Arc<RwLock<Buffer>>,
+    ) -> Result<Box<Self>, Box<dyn Error>> {
+        let buffer_lock = buffer.read().unwrap();
+
+        if !buffer_lock
+            .info
+            .usage
+            .intersects(vk::BufferUsageFlags::INDEX_BUFFER)
+        {
+            return Err("Cannot bind index buffer without INDEX_BUFFER usage flags!".into());
+        }
+
+        self.bindings.push(buffer.clone());
+
+        unsafe {
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_bind_index_buffer(self.handle, buffer_lock.handle, 0, vk::IndexType::UINT16);
+        };
+
+        Ok(self)
+    }
+
+    pub fn bind_vertex_buffer(
+        mut self: Box<Self>,
+        buffer: Arc<RwLock<Buffer>>,
+    ) -> Result<Box<Self>, Box<dyn Error>> {
+        let buffer_lock = buffer.read().unwrap();
+
+        if !buffer_lock
+            .info
+            .usage
+            .intersects(vk::BufferUsageFlags::VERTEX_BUFFER)
+        {
+            return Err("Cannot bind vertex buffer without VERTEX_BUFFER usage flags!".into());
+        }
+
+        self.bindings.push(buffer.clone());
+
+        let buffer_raw = buffer_lock.handle;
+
+        unsafe {
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_bind_vertex_buffers(self.handle, 0, &[buffer_raw], &[0]);
+        };
+
+        Ok(self)
+    }
+}
+
+impl CommandBufferBuilder<InRenderPassWithPipeline> {
+    pub fn end_render_pass(self: Box<Self>) -> Box<CommandBufferBuilder<Idle>> {
+        unsafe {
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_end_render_pass(self.handle)
+        };
+
+        Box::new(CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            last_pipeline_bound: self.last_pipeline_bound,
+            _state: PhantomData,
+        })
+    }
+
+    pub fn draw_indexed(
+        self: Box<Self>,
+        index_count: u32,
+        instance_count: u32,
+        first_index: u32,
+        vertex_offset: i32,
+        first_instance: u32,
+    ) -> Box<Self> {
+        unsafe {
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_draw_indexed(
+                    self.handle,
+                    index_count,
+                    instance_count,
+                    first_index,
+                    vertex_offset,
+                    first_instance,
+                );
+        }
+        self
+    }
+
+    pub fn draw_indexed_inderect(
+        self: Box<Self>,
+        buffer: Arc<RwLock<Buffer>>,
+        offset: u64,
+        draw_count: u32,
+        stride: u32,
+    ) -> Box<Self> {
+        unsafe {
+            let lock = buffer.read().unwrap();
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_draw_indexed_indirect(self.handle, lock.handle, offset, draw_count, stride);
+        }
+        self
+    }
+}
+
+impl CommandBufferBuilder {
     pub fn transition_image_layout(
         mut self: Box<Self>,
         image: Arc<Image>,
@@ -347,258 +638,5 @@ impl CommandBufferBuilder {
         }
 
         Ok(self)
-    }
-
-    pub fn dispatch(self: Box<Self>, group_count: [u32; 3]) -> Result<Box<Self>, Box<dyn Error>> {
-        if self.last_pipeline_bound.is_none() {
-            return Err("Pipeline should be bound before the dispatch call!".into());
-        }
-
-        unsafe {
-            self.command_buffer_allocator.device.handle.cmd_dispatch(
-                self.handle,
-                group_count[0],
-                group_count[1],
-                group_count[2],
-            );
-        }
-
-        Ok(self)
-    }
-
-    pub fn draw_indexed(
-        self: Box<Self>,
-        index_count: u32,
-        instance_count: u32,
-        first_index: u32,
-        vertex_offset: i32,
-        first_instance: u32,
-    ) -> Result<Box<Self>, Box<dyn Error>> {
-        if self.last_pipeline_bound.is_none() {
-            return Err("Pipeline should be bound before the draw call!".into());
-        }
-
-        unsafe {
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_draw_indexed(
-                    self.handle,
-                    index_count,
-                    instance_count,
-                    first_index,
-                    vertex_offset,
-                    first_instance,
-                );
-        }
-        Ok(self)
-    }
-
-    pub fn draw_indexed_inderect(
-        self: Box<Self>,
-        buffer: Arc<RwLock<Buffer>>,
-        offset: u64,
-        draw_count: u32,
-        stride: u32,
-    ) -> Result<Box<Self>, Box<dyn Error>> {
-        if self.last_pipeline_bound.is_none() {
-            return Err("Pipeline should be bound before the draw call!".into());
-        }
-
-        unsafe {
-            let lock = buffer.read().unwrap();
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_draw_indexed_indirect(self.handle, lock.handle, offset, draw_count, stride);
-        }
-        Ok(self)
-    }
-
-    pub fn bind_descriptor_sets(
-        mut self: Box<Self>,
-        first_set: u32,
-        descriptor_sets: Vec<Arc<Mutex<DescriptorSet>>>,
-    ) -> Result<Box<Self>, Box<dyn Error>> {
-        for descriptor_set in descriptor_sets.iter() {
-            self.bindings.push(descriptor_set.clone());
-        }
-
-        let pipeline = if let Some(pipeline) = self.last_pipeline_bound.clone() {
-            pipeline
-        } else {
-            return Err(
-                "Pipeline was not bound! Pipeline should be bound before descriptor sets".into(),
-            );
-        };
-
-        let layout = pipeline.pipeline_layout.clone();
-
-        self.bindings.push(layout.clone());
-
-        unsafe {
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_bind_descriptor_sets(
-                    self.handle,
-                    pipeline.bind_point,
-                    layout.handle,
-                    first_set,
-                    &descriptor_sets
-                        .iter()
-                        .map(|set| set.lock().unwrap().handle)
-                        .collect::<Vec<_>>(),
-                    &[],
-                );
-        }
-        Ok(self)
-    }
-
-    pub fn bind_index_buffer(
-        mut self: Box<Self>,
-        buffer: Arc<RwLock<Buffer>>,
-    ) -> Result<Box<Self>, Box<dyn Error>> {
-        let buffer_lock = buffer.read().unwrap();
-
-        if !buffer_lock
-            .info
-            .usage
-            .intersects(vk::BufferUsageFlags::INDEX_BUFFER)
-        {
-            return Err("Cannot bind index buffer without INDEX_BUFFER usage flags!".into());
-        }
-
-        self.bindings.push(buffer.clone());
-
-        unsafe {
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_bind_index_buffer(self.handle, buffer_lock.handle, 0, vk::IndexType::UINT16);
-        };
-
-        Ok(self)
-    }
-
-    pub fn bind_vertex_buffer(
-        mut self: Box<Self>,
-        buffer: Arc<RwLock<Buffer>>,
-    ) -> Result<Box<Self>, Box<dyn Error>> {
-        let buffer_lock = buffer.read().unwrap();
-
-        if !buffer_lock
-            .info
-            .usage
-            .intersects(vk::BufferUsageFlags::VERTEX_BUFFER)
-        {
-            return Err("Cannot bind vertex buffer without VERTEX_BUFFER usage flags!".into());
-        }
-
-        self.bindings.push(buffer.clone());
-
-        let buffer_raw = buffer_lock.handle;
-
-        unsafe {
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_bind_vertex_buffers(self.handle, 0, &[buffer_raw], &[0]);
-        };
-
-        Ok(self)
-    }
-
-    pub fn bind_viewport_and_scissor(
-        self: Box<Self>,
-        viewports: Vec<vk::Viewport>,
-        scissors: Vec<vk::Rect2D>,
-    ) -> Box<Self> {
-        unsafe {
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_set_viewport(self.handle, 0, &viewports);
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_set_scissor(self.handle, 0, &scissors);
-        }
-        self
-    }
-
-    pub fn bind_pipeline(mut self: Box<Self>, pipeline: Arc<Pipeline>) -> Box<Self> {
-        self.last_pipeline_bound = Some(pipeline.clone());
-
-        self.bindings.push(pipeline.clone());
-        unsafe {
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_bind_pipeline(self.handle, pipeline.bind_point, pipeline.handle)
-        };
-
-        self
-    }
-
-    pub fn bind_render_target(
-        mut self: Box<Self>,
-        render_target: Arc<RenderTarget>,
-        image_index: u32,
-    ) -> Result<Box<Self>, Box<dyn Error>> {
-        if self.render_pass_begun {
-            self.end_render_pass();
-        }
-
-        self.render_pass_begun = true;
-
-        self.bindings.push(render_target.clone());
-        let color = 0.3f32;
-        let clear_value_color = vk::ClearValue {
-            color: vk::ClearColorValue {
-                float32: [color, color, color, 1.],
-            },
-        };
-
-        let clear_value_stencil = vk::ClearValue {
-            depth_stencil: vk::ClearDepthStencilValue::default().depth(1.).stencil(0),
-        };
-
-        let clear_values = &[clear_value_color, clear_value_stencil];
-
-        let framebuffer_lock = render_target.framebuffer.read().unwrap();
-        let render_pass_begin_info = vk::RenderPassBeginInfo::default()
-            .render_pass(framebuffer_lock.render_pass.handle)
-            .framebuffer(framebuffer_lock.get_framebuffer(image_index))
-            .render_area(vk::Rect2D {
-                offset: vk::Offset2D::default().x(0).y(0),
-                extent: vk::Extent2D {
-                    width: framebuffer_lock.attachments[0].info.extent[0],
-                    height: framebuffer_lock.attachments[0].info.extent[1],
-                },
-            })
-            .clear_values(clear_values);
-
-        unsafe {
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_begin_render_pass(
-                    self.handle,
-                    &render_pass_begin_info,
-                    vk::SubpassContents::INLINE,
-                )
-        }
-
-        Ok(self)
-    }
-
-    fn end_render_pass(&self) {
-        unsafe {
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_end_render_pass(self.handle)
-        };
     }
 }
