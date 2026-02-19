@@ -223,8 +223,6 @@ impl PhysicalDevice {
     ) -> Result<(ash::Device, Vec<String>), Box<dyn Error>> {
         let extensions = self.query_extensions_support(enable_swapchain)?;
 
-        dbg!(self.info.queue_families_info.clone());
-
         let mut device_queue_create_infos = Vec::with_capacity(self.info.queue_families_info.len());
 
         let queue_priorities = self

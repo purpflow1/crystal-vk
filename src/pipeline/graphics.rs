@@ -40,6 +40,7 @@ impl Pipeline {
         render_target: Arc<RenderTarget>,
         shaders: Vec<Arc<Shader>>,
         mut pipeline_info: GraphicsPipelineInfo,
+        cache: Option<&[u8]>,
     ) -> Result<Arc<Pipeline>, Box<dyn Error>> {
         if shaders.is_empty() {
             return Err("no shaders specified".into());
@@ -174,9 +175,21 @@ impl Pipeline {
             .layout(pipeline_layout.handle)
             .render_pass(framebuffer_lock.render_pass.handle);
 
+        let mut cache_create_info = vk::PipelineCacheCreateInfo::default();
+        if let Some(cache) = cache {
+            cache_create_info = cache_create_info.initial_data(cache);
+        }
+
+        let cache = unsafe {
+            pipeline_layout
+                .device
+                .handle
+                .create_pipeline_cache(&cache_create_info, None)?
+        };
+
         match unsafe {
             render_target.device.handle.create_graphics_pipelines(
-                vk::PipelineCache::null(),
+                cache,
                 &[pipeline_create_info],
                 None,
             )
@@ -188,6 +201,7 @@ impl Pipeline {
                 pipeline_layout,
                 _shaders: shaders,
                 _render_target: Some(render_target),
+                cache,
             })),
             Err(e) => Err(e.1.into()),
         }

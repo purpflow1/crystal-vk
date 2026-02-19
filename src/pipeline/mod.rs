@@ -3,7 +3,7 @@ pub mod graphics;
 
 use graphics::*;
 
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 
 use ash::vk;
 
@@ -29,6 +29,7 @@ pub struct Pipeline {
     pub(crate) _info: PipelineInfo,
     _shaders: Vec<Arc<Shader>>,
     _render_target: Option<Arc<RenderTarget>>,
+    cache: vk::PipelineCache,
 }
 
 unsafe impl Send for Pipeline {}
@@ -37,11 +38,19 @@ impl CommandBufferBinding for Pipeline {}
 
 impl Drop for Pipeline {
     fn drop(&mut self) {
+        let device = self.pipeline_layout.device.clone();
+
         unsafe {
-            self.pipeline_layout
-                .device
-                .handle
-                .destroy_pipeline(self.handle, None);
+            device.handle.destroy_pipeline_cache(self.cache, None);
+            device.handle.destroy_pipeline(self.handle, None);
         }
+    }
+}
+
+impl Pipeline {
+    pub fn cache(&self) -> Result<Vec<u8>, Box<dyn Error>> {
+        let device = self.pipeline_layout.device.clone();
+        let data = unsafe { device.handle.get_pipeline_cache_data(self.cache)? };
+        Ok(data)
     }
 }

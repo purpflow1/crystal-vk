@@ -114,10 +114,7 @@ impl Instance {
         let _debug_utils_messanger = {
             #[cfg(debug_assertions)]
             match debug_callback::create_debug_utils_messanger(&entry, &instance) {
-                Ok(debug_utils_messanger) => {
-                    dbg!("debug_utils_messanger created");
-                    Some(debug_utils_messanger)
-                }
+                Ok(debug_utils_messanger) => Some(debug_utils_messanger),
                 Err(e) => {
                     dbg!(e);
                     None

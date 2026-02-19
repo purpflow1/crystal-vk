@@ -97,7 +97,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     let pipeline_layout = PipelineLayout::new(descriptor_pool, vec![descriptor_set_layout])?;
-    let pipeline = Pipeline::new_compute(pipeline_layout.clone(), shader)?;
+    let pipeline = Pipeline::new_compute(pipeline_layout.clone(), shader.clone(), None)?;
+
+    {
+        // cache test
+        let cache = pipeline.cache().unwrap();
+        Pipeline::new_compute(pipeline_layout, shader, Some(&cache)).unwrap();
+    }
 
     let mut lock = buffer_in.write().unwrap();
     let memory = lock.bind_memory(0..512).unwrap();
