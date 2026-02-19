@@ -7,7 +7,7 @@ use std::{
 use ash::vk;
 
 use crate::{
-    buffer::Buffer,
+    buffer::{AnyBuffer, Buffer, InderectBuffer, IndexBuffer, VertexBuffer},
     command::CommandBufferAllocator,
     device::queue::Queue,
     image::Image,
@@ -265,17 +265,9 @@ impl<State: RenderPassBound> CommandBufferBuilder<State> {
 
     pub fn bind_index_buffer(
         mut self: Box<Self>,
-        buffer: Arc<RwLock<Buffer>>,
-    ) -> Result<Box<Self>, Box<dyn Error>> {
+        buffer: Arc<RwLock<Buffer<IndexBuffer>>>,
+    ) -> Box<Self> {
         let buffer_lock = buffer.read().unwrap();
-
-        if !buffer_lock
-            .info
-            .usage
-            .intersects(vk::BufferUsageFlags::INDEX_BUFFER)
-        {
-            return Err("Cannot bind index buffer without INDEX_BUFFER usage flags!".into());
-        }
 
         self.bindings.push(buffer.clone());
 
@@ -286,25 +278,15 @@ impl<State: RenderPassBound> CommandBufferBuilder<State> {
                 .cmd_bind_index_buffer(self.handle, buffer_lock.handle, 0, vk::IndexType::UINT16);
         };
 
-        Ok(self)
+        self
     }
 
     pub fn bind_vertex_buffer(
         mut self: Box<Self>,
-        buffer: Arc<RwLock<Buffer>>,
-    ) -> Result<Box<Self>, Box<dyn Error>> {
+        buffer: Arc<RwLock<Buffer<VertexBuffer>>>,
+    ) -> Box<Self> {
         let buffer_lock = buffer.read().unwrap();
-
-        if !buffer_lock
-            .info
-            .usage
-            .intersects(vk::BufferUsageFlags::VERTEX_BUFFER)
-        {
-            return Err("Cannot bind vertex buffer without VERTEX_BUFFER usage flags!".into());
-        }
-
         self.bindings.push(buffer.clone());
-
         let buffer_raw = buffer_lock.handle;
 
         unsafe {
@@ -314,7 +296,7 @@ impl<State: RenderPassBound> CommandBufferBuilder<State> {
                 .cmd_bind_vertex_buffers(self.handle, 0, &[buffer_raw], &[0]);
         };
 
-        Ok(self)
+        self
     }
 }
 
@@ -362,7 +344,7 @@ impl CommandBufferBuilder<InRenderPassWithPipeline> {
 
     pub fn draw_indexed_inderect(
         self: Box<Self>,
-        buffer: Arc<RwLock<Buffer>>,
+        buffer: Arc<RwLock<Buffer<InderectBuffer>>>,
         offset: u64,
         draw_count: u32,
         stride: u32,
@@ -597,7 +579,7 @@ impl CommandBufferBuilder {
     pub fn stage_image(
         mut self: Box<Self>,
         image: Arc<Image>,
-        buffer: Arc<RwLock<Buffer>>,
+        buffer: Arc<RwLock<Buffer<AnyBuffer>>>,
     ) -> Result<Box<Self>, Box<dyn Error>> {
         self.bindings.push(image.clone());
         self.bindings.push(buffer.clone());
