@@ -36,8 +36,8 @@ impl FramebufferPool {
         render_pass: Arc<RenderPass>,
         images: Vec<Arc<Image>>,
     ) -> Result<Arc<RwLock<Self>>, Box<dyn Error>> {
-        let mut attachments_child = Vec::with_capacity(256);
-        let mut framebuffers = Vec::with_capacity(256);
+        let mut attachments_child = Vec::with_capacity(images.len());
+        let mut framebuffers = Vec::with_capacity(images.len());
 
         for image in images {
             let depth_image = Image::new_framebuffer_depth(

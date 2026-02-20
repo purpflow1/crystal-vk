@@ -1,4 +1,5 @@
 use std::{
+    collections::VecDeque,
     error::Error,
     marker::PhantomData,
     sync::{Arc, Mutex, RwLock},
@@ -45,7 +46,7 @@ pub struct CommandBufferBuilder<State: BuilderState = Idle> {
     pub(crate) handle: vk::CommandBuffer,
     pub(crate) command_buffer_allocator: Arc<CommandBufferAllocator>,
 
-    bindings: Vec<Arc<dyn CommandBufferBinding>>,
+    bindings: VecDeque<Arc<dyn CommandBufferBinding>>,
     last_pipeline_bound: Option<Arc<Pipeline>>,
 
     _state: PhantomData<State>,
@@ -102,7 +103,7 @@ impl CommandBufferBuilder<Idle> {
         Ok(Box::new(Self {
             handle: command_buffer,
             command_buffer_allocator,
-            bindings: Vec::new(),
+            bindings: VecDeque::new(),
             last_pipeline_bound: None,
             _state: PhantomData,
         }))
@@ -113,7 +114,7 @@ impl CommandBufferBuilder<Idle> {
         render_target: Arc<RenderTarget>,
         image_index: u32,
     ) -> Box<CommandBufferBuilder<InRenderPass>> {
-        self.bindings.push(render_target.clone());
+        self.bindings.push_back(render_target.clone());
         let color = 0.3f32;
         let clear_value_color = vk::ClearValue {
             color: vk::ClearColorValue {
@@ -168,14 +169,14 @@ impl<State: PipelineBoundState> CommandBufferBuilder<State> {
         descriptor_sets: Vec<Arc<Mutex<DescriptorSet>>>,
     ) -> Box<Self> {
         for descriptor_set in descriptor_sets.iter() {
-            self.bindings.push(descriptor_set.clone());
+            self.bindings.push_back(descriptor_set.clone());
         }
 
         let pipeline = self.last_pipeline_bound.clone().unwrap();
 
         let layout = pipeline.pipeline_layout.clone();
 
-        self.bindings.push(layout.clone());
+        self.bindings.push_back(layout.clone());
 
         unsafe {
             self.command_buffer_allocator
@@ -205,7 +206,7 @@ impl<State: AbleToPipelineBind> CommandBufferBuilder<State> {
     ) -> Box<CommandBufferBuilder<OutState>> {
         self.last_pipeline_bound = Some(pipeline.clone());
 
-        self.bindings.push(pipeline.clone());
+        self.bindings.push_back(pipeline.clone());
         unsafe {
             self.command_buffer_allocator
                 .device
@@ -269,7 +270,7 @@ impl<State: RenderPassBound> CommandBufferBuilder<State> {
     ) -> Box<Self> {
         let buffer_lock = buffer.read().unwrap();
 
-        self.bindings.push(buffer.clone());
+        self.bindings.push_back(buffer.clone());
 
         unsafe {
             self.command_buffer_allocator
@@ -286,7 +287,7 @@ impl<State: RenderPassBound> CommandBufferBuilder<State> {
         buffer: Arc<RwLock<Buffer<VertexBuffer>>>,
     ) -> Box<Self> {
         let buffer_lock = buffer.read().unwrap();
-        self.bindings.push(buffer.clone());
+        self.bindings.push_back(buffer.clone());
         let buffer_raw = buffer_lock.handle;
 
         unsafe {
@@ -366,7 +367,7 @@ impl CommandBufferBuilder {
         image: Arc<Image>,
         layout_new: vk::ImageLayout,
     ) -> Result<Box<Self>, Box<dyn Error>> {
-        self.bindings.push(image.clone());
+        self.bindings.push_back(image.clone());
 
         let layout_old = image.info.layout.get();
 
@@ -433,7 +434,7 @@ impl CommandBufferBuilder {
         mut self: Box<Self>,
         image: Arc<Image>,
     ) -> Result<Box<Self>, Box<dyn Error>> {
-        self.bindings.push(image.clone());
+        self.bindings.push_back(image.clone());
         let mut barrier = vk::ImageMemoryBarrier::default()
             .image(image.handle)
             .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
@@ -581,8 +582,8 @@ impl CommandBufferBuilder {
         image: Arc<Image>,
         buffer: Arc<RwLock<Buffer<AnyBuffer>>>,
     ) -> Result<Box<Self>, Box<dyn Error>> {
-        self.bindings.push(image.clone());
-        self.bindings.push(buffer.clone());
+        self.bindings.push_back(image.clone());
+        self.bindings.push_back(buffer.clone());
         let layout = image.info.layout.get();
 
         if layout != vk::ImageLayout::TRANSFER_DST_OPTIMAL {
