@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     collections::VecDeque,
     error::Error,
     marker::PhantomData,
@@ -15,7 +16,6 @@ use crate::{
     pipeline::{Pipeline, descriptor::descriptor_set_layout::descriptor_set::DescriptorSet},
     render::RenderTarget,
     sync::CommandBufferFuture,
-    traits::CommandBufferBinding,
 };
 
 pub trait BuilderState {}
@@ -41,12 +41,15 @@ impl BuilderState for InRenderPassWithPipeline {}
 impl PipelineBoundState for InRenderPassWithPipeline {}
 impl RenderPassBound for InRenderPassWithPipeline {}
 
+pub struct ImageStaged;
+impl BuilderState for ImageStaged {}
+impl Buildable for ImageStaged {}
+
 pub struct CommandBufferBuilder<State: BuilderState = Idle> {
     pub(crate) handle: vk::CommandBuffer,
     pub(crate) command_buffer_allocator: Arc<CommandBufferAllocator>,
 
-    bindings: VecDeque<Arc<dyn CommandBufferBinding>>,
-    last_pipeline_bound: Option<Arc<Pipeline>>,
+    bindings: VecDeque<Arc<dyn Any + Send + Sync>>,
 
     _state: PhantomData<State>,
 }
@@ -67,7 +70,6 @@ impl<State: Buildable> CommandBufferBuilder<State> {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
-            last_pipeline_bound: self.last_pipeline_bound,
             _state: PhantomData,
         });
 
@@ -113,7 +115,6 @@ impl CommandBufferBuilder<Idle> {
             handle: command_buffer,
             command_buffer_allocator,
             bindings: VecDeque::new(),
-            last_pipeline_bound: None,
             _state: PhantomData,
         }))
     }
@@ -127,7 +128,6 @@ impl CommandBufferBuilder<Idle> {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
-            last_pipeline_bound: self.last_pipeline_bound,
             _state: PhantomData,
         });
         new.begin_render_pass_in(render_target, image_index)
@@ -141,7 +141,6 @@ impl CommandBufferBuilder<Idle> {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
-            last_pipeline_bound: self.last_pipeline_bound,
             _state: PhantomData,
         });
         new.bind_pipeline_in(pipeline)
@@ -158,7 +157,12 @@ impl<State: PipelineBoundState> CommandBufferBuilder<State> {
             self.bindings.push_back(descriptor_set.clone());
         }
 
-        let pipeline = self.last_pipeline_bound.clone().unwrap();
+        let pipeline: Arc<Pipeline> = self
+            .bindings
+            .iter()
+            .rfind(|item| Arc::clone(item).downcast::<Pipeline>().is_ok())
+            .map(|item| Arc::clone(item).downcast().unwrap())
+            .unwrap();
 
         let layout = pipeline.pipeline_layout.clone();
 
@@ -194,7 +198,6 @@ impl CommandBufferBuilder<PipelineBound> {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
-            last_pipeline_bound: self.last_pipeline_bound,
             _state: PhantomData,
         });
         new.bind_pipeline_in(pipeline)
@@ -209,7 +212,6 @@ impl CommandBufferBuilder<PipelineBound> {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
-            last_pipeline_bound: self.last_pipeline_bound,
             _state: PhantomData,
         });
         new.begin_render_pass_in(render_target, image_index)
@@ -294,7 +296,6 @@ impl CommandBufferBuilder<InRenderPass> {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
-            last_pipeline_bound: self.last_pipeline_bound,
             _state: PhantomData,
         });
         new.bind_pipeline_in(pipeline)
@@ -310,7 +311,6 @@ impl CommandBufferBuilder<InRenderPassWithPipeline> {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
-            last_pipeline_bound: self.last_pipeline_bound,
             _state: PhantomData,
         });
         new.bind_pipeline_in(pipeline)
@@ -328,7 +328,6 @@ impl CommandBufferBuilder<InRenderPassWithPipeline> {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
-            last_pipeline_bound: self.last_pipeline_bound,
             _state: PhantomData,
         })
     }
@@ -375,79 +374,11 @@ impl CommandBufferBuilder<InRenderPassWithPipeline> {
     }
 }
 
-impl CommandBufferBuilder {
-    pub fn transition_image_layout(
-        mut self: Box<Self>,
-        image: Arc<Image>,
-        layout_new: vk::ImageLayout,
-    ) -> Result<Box<Self>, Box<dyn Error>> {
-        self.bindings.push_back(image.clone());
-
-        let layout_old = image.info.layout.get();
-
-        let mut barrier = vk::ImageMemoryBarrier::default()
-            .old_layout(layout_old)
-            .new_layout(layout_new)
-            .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-            .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-            .image(image.handle)
-            .subresource_range(
-                vk::ImageSubresourceRange::default()
-                    .aspect_mask(vk::ImageAspectFlags::COLOR)
-                    .base_mip_level(0)
-                    .level_count(image.info.mip_levels)
-                    .base_array_layer(0)
-                    .layer_count(1),
-            );
-
-        let mut src_stage = vk::PipelineStageFlags::TOP_OF_PIPE;
-        let mut dst_stage = vk::PipelineStageFlags::TRANSFER;
-
-        if layout_old == vk::ImageLayout::UNDEFINED
-            && layout_new == vk::ImageLayout::TRANSFER_DST_OPTIMAL
-        {
-            barrier = barrier
-                .src_access_mask(vk::AccessFlags::empty())
-                .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE);
-        } else if layout_old == vk::ImageLayout::TRANSFER_DST_OPTIMAL
-            && layout_new == vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
-        {
-            barrier = barrier
-                .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
-                .dst_access_mask(vk::AccessFlags::SHADER_READ);
-
-            src_stage = vk::PipelineStageFlags::TRANSFER;
-            dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
-        } else {
-            return Err(
-                format!("unsupported layout transition: {layout_old:?} -> {layout_new:?}").into(),
-            );
-        }
-
-        unsafe {
-            image.info.layout.set(layout_new);
-
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_pipeline_barrier(
-                    self.handle,
-                    src_stage,
-                    dst_stage,
-                    vk::DependencyFlags::empty(),
-                    &[],
-                    &[],
-                    &[barrier],
-                )
-        };
-
-        Ok(self)
-    }
-
+impl CommandBufferBuilder<ImageStaged> {
     pub fn generate_mipmaps(
         mut self: Box<Self>,
         image: Arc<Image>,
-    ) -> Result<Box<Self>, Box<dyn Error>> {
+    ) -> Box<CommandBufferBuilder<Idle>> {
         self.bindings.push_back(image.clone());
         let mut barrier = vk::ImageMemoryBarrier::default()
             .image(image.handle)
@@ -588,21 +519,88 @@ impl CommandBufferBuilder {
                 );
         }
 
-        Ok(self)
+        Box::new(CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            _state: PhantomData,
+        })
+    }
+}
+
+impl CommandBufferBuilder {
+    fn transition_image_layout(
+        mut self: Box<Self>,
+        image: Arc<Image>,
+        layout_new: vk::ImageLayout,
+    ) -> Box<Self> {
+        self.bindings.push_back(image.clone());
+
+        let layout_old = image.info.layout.get();
+
+        let mut barrier = vk::ImageMemoryBarrier::default()
+            .old_layout(layout_old)
+            .new_layout(layout_new)
+            .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .image(image.handle)
+            .subresource_range(
+                vk::ImageSubresourceRange::default()
+                    .aspect_mask(vk::ImageAspectFlags::COLOR)
+                    .base_mip_level(0)
+                    .level_count(image.info.mip_levels)
+                    .base_array_layer(0)
+                    .layer_count(1),
+            );
+
+        let mut src_stage = vk::PipelineStageFlags::TOP_OF_PIPE;
+        let mut dst_stage = vk::PipelineStageFlags::TRANSFER;
+
+        if layout_old == vk::ImageLayout::UNDEFINED
+            && layout_new == vk::ImageLayout::TRANSFER_DST_OPTIMAL
+        {
+            barrier = barrier
+                .src_access_mask(vk::AccessFlags::empty())
+                .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE);
+        } else if layout_old == vk::ImageLayout::TRANSFER_DST_OPTIMAL
+            && layout_new == vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
+        {
+            barrier = barrier
+                .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                .dst_access_mask(vk::AccessFlags::SHADER_READ);
+
+            src_stage = vk::PipelineStageFlags::TRANSFER;
+            dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
+        }
+
+        unsafe {
+            image.info.layout.set(layout_new);
+
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_pipeline_barrier(
+                    self.handle,
+                    src_stage,
+                    dst_stage,
+                    vk::DependencyFlags::empty(),
+                    &[],
+                    &[],
+                    &[barrier],
+                )
+        };
+
+        self
     }
 
     pub fn stage_image(
         mut self: Box<Self>,
         image: Arc<Image>,
         buffer: Arc<RwLock<Buffer<AnyBuffer>>>,
-    ) -> Result<Box<Self>, Box<dyn Error>> {
+    ) -> Box<CommandBufferBuilder<ImageStaged>> {
+        self = self.transition_image_layout(image.clone(), vk::ImageLayout::TRANSFER_DST_OPTIMAL);
         self.bindings.push_back(image.clone());
         self.bindings.push_back(buffer.clone());
-        let layout = image.info.layout.get();
-
-        if layout != vk::ImageLayout::TRANSFER_DST_OPTIMAL {
-            return Err(format!("staging is not supported with {layout:?}").into());
-        }
 
         let region = vk::BufferImageCopy::default()
             .buffer_offset(0)
@@ -634,7 +632,12 @@ impl CommandBufferBuilder {
             );
         }
 
-        Ok(self)
+        Box::new(CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            _state: PhantomData,
+        })
     }
 
     fn begin_render_pass_in<T: RenderPassBound>(
@@ -684,7 +687,6 @@ impl CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
-            last_pipeline_bound: self.last_pipeline_bound,
             _state: PhantomData,
         })
     }
@@ -693,8 +695,6 @@ impl CommandBufferBuilder {
         mut self: Box<Self>,
         pipeline: Arc<Pipeline>,
     ) -> Box<CommandBufferBuilder<OutState>> {
-        self.last_pipeline_bound = Some(pipeline.clone());
-
         self.bindings.push_back(pipeline.clone());
         unsafe {
             self.command_buffer_allocator
@@ -707,7 +707,6 @@ impl CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
-            last_pipeline_bound: self.last_pipeline_bound,
             _state: PhantomData,
         })
     }

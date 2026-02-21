@@ -52,7 +52,11 @@ unsafe impl Send for Image {}
 unsafe impl Sync for Image {}
 
 impl DescriptorSetBinding for Image {}
-impl CommandBufferBinding for Image {}
+impl CommandBufferBinding for Image {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
 
 impl Drop for Image {
     fn drop(&mut self) {

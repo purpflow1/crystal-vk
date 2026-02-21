@@ -34,7 +34,7 @@ pub struct BufferInfo {
     pub properties: vk::MemoryPropertyFlags,
 }
 
-pub struct Buffer<Usage: BufferUsage> {
+pub struct Buffer<Usage: BufferUsage + 'static> {
     pub(super) handle: vk::Buffer,
     memory: vk::DeviceMemory,
     pub info: BufferInfo,
@@ -49,7 +49,11 @@ unsafe impl<Usage: BufferUsage> Send for Buffer<Usage> {}
 unsafe impl<Usage: BufferUsage> Sync for Buffer<Usage> {}
 
 impl<Usage: BufferUsage> DescriptorSetBinding for RwLock<Buffer<Usage>> {}
-impl<Usage: BufferUsage> CommandBufferBinding for RwLock<Buffer<Usage>> {}
+impl<Usage: BufferUsage> CommandBufferBinding for RwLock<Buffer<Usage>> {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
 
 impl<Usage: BufferUsage> Drop for Buffer<Usage> {
     fn drop(&mut self) {

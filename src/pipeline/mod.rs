@@ -34,7 +34,11 @@ pub struct Pipeline {
 
 unsafe impl Send for Pipeline {}
 unsafe impl Sync for Pipeline {}
-impl CommandBufferBinding for Pipeline {}
+impl CommandBufferBinding for Pipeline {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
 
 impl Drop for Pipeline {
     fn drop(&mut self) {

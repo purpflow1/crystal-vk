@@ -24,7 +24,11 @@ pub struct DescriptorSet {
 unsafe impl Send for DescriptorSet {}
 unsafe impl Sync for DescriptorSet {}
 
-impl CommandBufferBinding for Mutex<DescriptorSet> {}
+impl CommandBufferBinding for Mutex<DescriptorSet> {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
 
 impl DescriptorSet {
     pub fn bind_combined_image_sampler(

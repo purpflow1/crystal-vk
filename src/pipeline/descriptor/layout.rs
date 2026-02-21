@@ -21,7 +21,11 @@ pub struct PipelineLayout {
 unsafe impl Send for PipelineLayout {}
 unsafe impl Sync for PipelineLayout {}
 
-impl CommandBufferBinding for PipelineLayout {}
+impl CommandBufferBinding for PipelineLayout {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
 
 impl Drop for PipelineLayout {
     fn drop(&mut self) {
