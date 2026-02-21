@@ -20,22 +20,24 @@ use crate::{
 
 pub trait BuilderState {}
 pub trait PipelineBoundState: BuilderState {}
-pub trait AbleToPipelineBind: BuilderState {}
 pub trait RenderPassBound: BuilderState {}
+pub trait RenderPassBeginable: BuilderState {}
+pub trait Buildable: BuilderState {}
 
 pub struct Idle;
 impl BuilderState for Idle {}
-impl AbleToPipelineBind for Idle {}
+impl RenderPassBeginable for Idle {}
+impl Buildable for Idle {}
 
 pub struct PipelineBound;
 impl BuilderState for PipelineBound {}
 impl PipelineBoundState for PipelineBound {}
-impl AbleToPipelineBind for PipelineBound {}
+impl RenderPassBeginable for PipelineBound {}
+impl Buildable for PipelineBound {}
 
 pub struct InRenderPass;
 impl BuilderState for InRenderPass {}
 impl RenderPassBound for InRenderPass {}
-impl AbleToPipelineBind for InRenderPass {}
 
 pub struct InRenderPassWithPipeline;
 impl BuilderState for InRenderPassWithPipeline {}
@@ -52,7 +54,7 @@ pub struct CommandBufferBuilder<State: BuilderState = Idle> {
     _state: PhantomData<State>,
 }
 
-impl CommandBufferBuilder<Idle> {
+impl<State: Buildable> CommandBufferBuilder<State> {
     pub fn build(
         self: Box<Self>,
         queue: Arc<Mutex<Queue>>,
@@ -64,9 +66,19 @@ impl CommandBufferBuilder<Idle> {
                 .end_command_buffer(self.handle)
         }?;
 
-        CommandBufferFuture::new(self, queue)
-    }
+        let new = Box::new(CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            last_pipeline_bound: self.last_pipeline_bound,
+            _state: PhantomData,
+        });
 
+        CommandBufferFuture::new(new, queue)
+    }
+}
+
+impl CommandBufferBuilder<Idle> {
     pub fn new(
         command_buffer_allocator: Arc<CommandBufferAllocator>,
         queue_family_index: u32,
@@ -110,55 +122,32 @@ impl CommandBufferBuilder<Idle> {
     }
 
     pub fn begin_render_pass(
-        mut self: Box<Self>,
+        self: Box<Self>,
         render_target: Arc<RenderTarget>,
         image_index: u32,
     ) -> Box<CommandBufferBuilder<InRenderPass>> {
-        self.bindings.push_back(render_target.clone());
-        let color = 0.3f32;
-        let clear_value_color = vk::ClearValue {
-            color: vk::ClearColorValue {
-                float32: [color, color, color, 1.],
-            },
-        };
-
-        let clear_value_stencil = vk::ClearValue {
-            depth_stencil: vk::ClearDepthStencilValue::default().depth(1.).stencil(0),
-        };
-
-        let clear_values = &[clear_value_color, clear_value_stencil];
-
-        let framebuffer_lock = render_target.framebuffer.read().unwrap();
-        let render_pass_begin_info = vk::RenderPassBeginInfo::default()
-            .render_pass(framebuffer_lock.render_pass.handle)
-            .framebuffer(framebuffer_lock.get_framebuffer(image_index))
-            .render_area(vk::Rect2D {
-                offset: vk::Offset2D::default().x(0).y(0),
-                extent: vk::Extent2D {
-                    width: framebuffer_lock.attachments[0].info.extent[0],
-                    height: framebuffer_lock.attachments[0].info.extent[1],
-                },
-            })
-            .clear_values(clear_values);
-
-        unsafe {
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_begin_render_pass(
-                    self.handle,
-                    &render_pass_begin_info,
-                    vk::SubpassContents::INLINE,
-                )
-        }
-
-        Box::new(CommandBufferBuilder {
+        let new = Box::new(CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
             last_pipeline_bound: self.last_pipeline_bound,
             _state: PhantomData,
-        })
+        });
+        new.begin_render_pass_in(render_target, image_index)
+    }
+
+    pub fn bind_pipeline(
+        self: Box<Self>,
+        pipeline: Arc<Pipeline>,
+    ) -> Box<CommandBufferBuilder<PipelineBound>> {
+        let new = Box::new(CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            last_pipeline_bound: self.last_pipeline_bound,
+            _state: PhantomData,
+        });
+        new.bind_pipeline_in(pipeline)
     }
 }
 
@@ -199,33 +188,37 @@ impl<State: PipelineBoundState> CommandBufferBuilder<State> {
     }
 }
 
-impl<State: AbleToPipelineBind> CommandBufferBuilder<State> {
-    pub fn bind_pipeline<OutState: PipelineBoundState>(
-        mut self: Box<Self>,
+impl CommandBufferBuilder<PipelineBound> {
+    pub fn bind_pipeline(
+        self: Box<Self>,
         pipeline: Arc<Pipeline>,
-    ) -> Box<CommandBufferBuilder<OutState>> {
-        self.last_pipeline_bound = Some(pipeline.clone());
-
-        self.bindings.push_back(pipeline.clone());
-        unsafe {
-            self.command_buffer_allocator
-                .device
-                .handle
-                .cmd_bind_pipeline(self.handle, pipeline.bind_point, pipeline.handle)
-        };
-
-        Box::new(CommandBufferBuilder {
+    ) -> Box<CommandBufferBuilder<PipelineBound>> {
+        let new = Box::new(CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
             last_pipeline_bound: self.last_pipeline_bound,
             _state: PhantomData,
-        })
+        });
+        new.bind_pipeline_in(pipeline)
     }
-}
 
-impl CommandBufferBuilder<PipelineBound> {
-    pub fn dispatch(self: Box<Self>, group_count: [u32; 3]) -> Box<CommandBufferBuilder<Idle>> {
+    pub fn begin_render_pass(
+        self: Box<Self>,
+        render_target: Arc<RenderTarget>,
+        image_index: u32,
+    ) -> Box<CommandBufferBuilder<InRenderPassWithPipeline>> {
+        let new = Box::new(CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            last_pipeline_bound: self.last_pipeline_bound,
+            _state: PhantomData,
+        });
+        new.begin_render_pass_in(render_target, image_index)
+    }
+
+    pub fn dispatch(self: Box<Self>, group_count: [u32; 3]) -> Box<Self> {
         unsafe {
             self.command_buffer_allocator.device.handle.cmd_dispatch(
                 self.handle,
@@ -235,13 +228,7 @@ impl CommandBufferBuilder<PipelineBound> {
             );
         }
 
-        Box::new(CommandBufferBuilder {
-            handle: self.handle,
-            command_buffer_allocator: self.command_buffer_allocator,
-            bindings: self.bindings,
-            last_pipeline_bound: self.last_pipeline_bound,
-            _state: PhantomData,
-        })
+        self
     }
 }
 
@@ -301,8 +288,38 @@ impl<State: RenderPassBound> CommandBufferBuilder<State> {
     }
 }
 
+impl CommandBufferBuilder<InRenderPass> {
+    pub fn bind_pipeline(
+        self: Box<Self>,
+        pipeline: Arc<Pipeline>,
+    ) -> Box<CommandBufferBuilder<InRenderPassWithPipeline>> {
+        let new = Box::new(CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            last_pipeline_bound: self.last_pipeline_bound,
+            _state: PhantomData,
+        });
+        new.bind_pipeline_in(pipeline)
+    }
+}
+
 impl CommandBufferBuilder<InRenderPassWithPipeline> {
-    pub fn end_render_pass(self: Box<Self>) -> Box<CommandBufferBuilder<Idle>> {
+    pub fn bind_pipeline(
+        self: Box<Self>,
+        pipeline: Arc<Pipeline>,
+    ) -> Box<CommandBufferBuilder<InRenderPassWithPipeline>> {
+        let new = Box::new(CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            last_pipeline_bound: self.last_pipeline_bound,
+            _state: PhantomData,
+        });
+        new.bind_pipeline_in(pipeline)
+    }
+
+    pub fn end_render_pass(self: Box<Self>) -> Box<CommandBufferBuilder<PipelineBound>> {
         unsafe {
             self.command_buffer_allocator
                 .device
@@ -621,5 +638,80 @@ impl CommandBufferBuilder {
         }
 
         Ok(self)
+    }
+
+    fn begin_render_pass_in<T: RenderPassBound>(
+        mut self: Box<Self>,
+        render_target: Arc<RenderTarget>,
+        image_index: u32,
+    ) -> Box<CommandBufferBuilder<T>> {
+        self.bindings.push_back(render_target.clone());
+        let color = 0.3f32;
+        let clear_value_color = vk::ClearValue {
+            color: vk::ClearColorValue {
+                float32: [color, color, color, 1.],
+            },
+        };
+
+        let clear_value_stencil = vk::ClearValue {
+            depth_stencil: vk::ClearDepthStencilValue::default().depth(1.).stencil(0),
+        };
+
+        let clear_values = &[clear_value_color, clear_value_stencil];
+
+        let framebuffer_lock = render_target.framebuffer.read().unwrap();
+        let render_pass_begin_info = vk::RenderPassBeginInfo::default()
+            .render_pass(framebuffer_lock.render_pass.handle)
+            .framebuffer(framebuffer_lock.get_framebuffer(image_index))
+            .render_area(vk::Rect2D {
+                offset: vk::Offset2D::default().x(0).y(0),
+                extent: vk::Extent2D {
+                    width: framebuffer_lock.attachments[0].info.extent[0],
+                    height: framebuffer_lock.attachments[0].info.extent[1],
+                },
+            })
+            .clear_values(clear_values);
+
+        unsafe {
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_begin_render_pass(
+                    self.handle,
+                    &render_pass_begin_info,
+                    vk::SubpassContents::INLINE,
+                )
+        }
+
+        Box::new(CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            last_pipeline_bound: self.last_pipeline_bound,
+            _state: PhantomData,
+        })
+    }
+
+    fn bind_pipeline_in<OutState: PipelineBoundState>(
+        mut self: Box<Self>,
+        pipeline: Arc<Pipeline>,
+    ) -> Box<CommandBufferBuilder<OutState>> {
+        self.last_pipeline_bound = Some(pipeline.clone());
+
+        self.bindings.push_back(pipeline.clone());
+        unsafe {
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_bind_pipeline(self.handle, pipeline.bind_point, pipeline.handle)
+        };
+
+        Box::new(CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            last_pipeline_bound: self.last_pipeline_bound,
+            _state: PhantomData,
+        })
     }
 }
