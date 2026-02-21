@@ -2,7 +2,7 @@ use std::{error::Error, sync::Arc};
 
 use ash::vk;
 
-use crate::{device::Device, image::Image, traits::DescriptorSetBinding};
+use crate::device::Device;
 
 pub struct SamplerInfo {
     pub filter: vk::Filter,
@@ -15,9 +15,6 @@ pub struct Sampler {
     pub(crate) handle: vk::Sampler,
     pub device: Arc<Device>,
 }
-
-impl DescriptorSetBinding for Sampler {}
-impl DescriptorSetBinding for (Arc<Image>, Arc<Sampler>) {}
 
 impl Drop for Sampler {
     fn drop(&mut self) {

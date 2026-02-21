@@ -17,7 +17,6 @@ use crate::{
         framebuffer::FramebufferPool,
         render_pass::{RenderPass, RenderPassInfo},
     },
-    traits::CommandBufferBinding,
 };
 
 pub struct RenderTarget {
@@ -27,12 +26,6 @@ pub struct RenderTarget {
 
 unsafe impl Send for RenderTarget {}
 unsafe impl Sync for RenderTarget {}
-
-impl CommandBufferBinding for RenderTarget {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
 
 impl RenderTarget {
     pub fn new(

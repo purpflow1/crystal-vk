@@ -10,7 +10,6 @@ use ash::vk;
 use crate::{
     pipeline::{descriptor::layout::PipelineLayout, shader::Shader},
     render::RenderTarget,
-    traits::CommandBufferBinding,
 };
 
 pub mod attribute;
@@ -34,11 +33,6 @@ pub struct Pipeline {
 
 unsafe impl Send for Pipeline {}
 unsafe impl Sync for Pipeline {}
-impl CommandBufferBinding for Pipeline {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
 
 impl Drop for Pipeline {
     fn drop(&mut self) {

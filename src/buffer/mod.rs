@@ -7,10 +7,7 @@ use std::{
 
 use ash::vk;
 
-use crate::{
-    device::Device,
-    traits::{CommandBufferBinding, DescriptorSetBinding},
-};
+use crate::device::Device;
 
 pub trait BufferUsage {}
 
@@ -47,13 +44,6 @@ pub struct Buffer<Usage: BufferUsage + 'static> {
 
 unsafe impl<Usage: BufferUsage> Send for Buffer<Usage> {}
 unsafe impl<Usage: BufferUsage> Sync for Buffer<Usage> {}
-
-impl<Usage: BufferUsage> DescriptorSetBinding for RwLock<Buffer<Usage>> {}
-impl<Usage: BufferUsage> CommandBufferBinding for RwLock<Buffer<Usage>> {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
 
 impl<Usage: BufferUsage> Drop for Buffer<Usage> {
     fn drop(&mut self) {

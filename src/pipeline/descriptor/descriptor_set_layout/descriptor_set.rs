@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     collections::BTreeMap,
     error::Error,
     sync::{Arc, Mutex, RwLock},
@@ -10,7 +11,6 @@ use crate::{
     buffer::{AnyBuffer, Buffer},
     image::{Image, sampler::Sampler},
     pipeline::descriptor::{DescriptorPool, descriptor_set_layout::DescriptorSetLayout},
-    traits::{CommandBufferBinding, DescriptorSetBinding},
 };
 
 pub struct DescriptorSet {
@@ -18,17 +18,11 @@ pub struct DescriptorSet {
     pub(crate) descriptor_set_layout: Arc<DescriptorSetLayout>,
     descriptor_pool: Arc<Mutex<DescriptorPool>>,
 
-    bindings: BTreeMap<u32, Arc<dyn DescriptorSetBinding>>,
+    bindings: BTreeMap<u32, Arc<dyn Any + Send + Sync>>,
 }
 
 unsafe impl Send for DescriptorSet {}
 unsafe impl Sync for DescriptorSet {}
-
-impl CommandBufferBinding for Mutex<DescriptorSet> {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
 
 impl DescriptorSet {
     pub fn bind_combined_image_sampler(

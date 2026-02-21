@@ -4,10 +4,7 @@ use std::{cell::Cell, error::Error, sync::Arc};
 
 use ash::vk;
 
-use crate::{
-    device::Device,
-    traits::{CommandBufferBinding, DescriptorSetBinding},
-};
+use crate::device::Device;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum ImageType {
@@ -50,13 +47,6 @@ pub struct Image {
 
 unsafe impl Send for Image {}
 unsafe impl Sync for Image {}
-
-impl DescriptorSetBinding for Image {}
-impl CommandBufferBinding for Image {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
 
 impl Drop for Image {
     fn drop(&mut self) {
