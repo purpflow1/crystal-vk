@@ -21,18 +21,15 @@ use crate::{
 pub trait BuilderState {}
 pub trait PipelineBoundState: BuilderState {}
 pub trait RenderPassBound: BuilderState {}
-pub trait RenderPassBeginable: BuilderState {}
 pub trait Buildable: BuilderState {}
 
 pub struct Idle;
 impl BuilderState for Idle {}
-impl RenderPassBeginable for Idle {}
 impl Buildable for Idle {}
 
 pub struct PipelineBound;
 impl BuilderState for PipelineBound {}
 impl PipelineBoundState for PipelineBound {}
-impl RenderPassBeginable for PipelineBound {}
 impl Buildable for PipelineBound {}
 
 pub struct InRenderPass;
