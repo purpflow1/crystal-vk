@@ -157,8 +157,8 @@ impl Instance {
         window: &T,
     ) -> Result<Arc<Self>, Box<dyn Error>> {
         Self::new_in(Some((
-            window.window_handle()?.as_raw(),
-            window.display_handle()?.as_raw(),
+            window.window_handle().unwrap().as_raw(),
+            window.display_handle().unwrap().as_raw(),
         )))
     }
 }
