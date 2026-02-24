@@ -1,7 +1,7 @@
 [package]
 name = "crystal-vk"
 description = "Graphics wrapper for Vulkan"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 authors = ["purpflow"]
 
@@ -26,6 +26,7 @@ lto = true
 strip = true
 
 [profile.dev]
+opt-level = 2
 overflow-checks = true
 
 [dependencies]

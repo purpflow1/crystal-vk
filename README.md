@@ -11,20 +11,19 @@ This library provides convenient abstractions over Vulkan while maintaining its 
 - Support for Various Vulkan Features: Includes compute shaders and next-generation synchronization.
 - Cross-Platform: Works on Windows, Linux, and macOS (via MoltenVK).
 
-There are plans to add extensibility, in particular: easy integration of third-party libraries and Vulkan extensions.
-
 ---
 
 ## 🚀 Quick Start
 Add `crystal-vk` to your `Cargo.toml` dependencies
 ```toml
 [dependencies]
-crystal-vk = "0.0.4"
+crystal-vk = "0.2.0"
 ```
 Here is a minimal example showing how to create a Vulkan device:
 ```rust
 use winit::{dpi::LogicalSize, window::Window};
 use crystal_vk::device::Device;
+use crystal_vk::instance::Instance;
 
 pub fn new(event_loop: &winit::event_loop::ActiveEventLoop) {
     // winit window creation
@@ -38,7 +37,21 @@ pub fn new(event_loop: &winit::event_loop::ActiveEventLoop) {
     };
 
     // creates logical device from the first element of the list of available devices
-    let (device, queues) = Device::with_present(|devices| devices[0].clone(), &window).unwrap();
+    let instance = Instance::new_window(&window).unwrap();
+    let surface = instance.create_surface().unwrap();
+    let physical_device =
+        instance.enumerate_physical_devices(Some(surface)).unwrap()[0].clone();
+
+    let (device, queues) = Device::new(
+        physical_device,
+        vk::PhysicalDeviceFeatures::default().sampler_anisotropy(true),
+        vec![
+            vk::KHR_SWAPCHAIN_NAME,
+            vk::EXT_IMAGE_COMPRESSION_CONTROL_NAME,
+            vk::EXT_IMAGE_COMPRESSION_CONTROL_SWAPCHAIN_NAME,
+        ],
+    )
+    .unwrap();
 }
 ```
 
