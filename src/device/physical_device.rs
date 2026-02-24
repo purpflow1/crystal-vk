@@ -189,21 +189,8 @@ impl PhysicalDevice {
 
     fn query_extensions_support(
         &self,
-        enable_swapchain: bool,
+        extensions: Vec<&'static CStr>,
     ) -> Result<Vec<&CStr>, Box<dyn Error>> {
-        let extensions = if enable_swapchain {
-            vec![
-                vk::KHR_SWAPCHAIN_NAME,
-                vk::KHR_ACCELERATION_STRUCTURE_NAME,
-                vk::KHR_RAY_TRACING_PIPELINE_NAME,
-                vk::KHR_DEFERRED_HOST_OPERATIONS_NAME,
-                vk::EXT_IMAGE_COMPRESSION_CONTROL_NAME,
-                vk::EXT_IMAGE_COMPRESSION_CONTROL_SWAPCHAIN_NAME,
-            ]
-        } else {
-            vec![vk::KHR_DEFERRED_HOST_OPERATIONS_NAME]
-        };
-
         let mut supported_extensions = Vec::with_capacity(extensions.len());
 
         let extension_props = unsafe {
@@ -229,9 +216,9 @@ impl PhysicalDevice {
     pub(crate) fn create_device(
         &self,
         features: vk::PhysicalDeviceFeatures,
-        enable_swapchain: bool,
+        extensions: Vec<&'static CStr>,
     ) -> Result<(ash::Device, Vec<String>), Box<dyn Error>> {
-        let extensions = self.query_extensions_support(enable_swapchain)?;
+        let extensions = self.query_extensions_support(extensions)?;
 
         let mut device_queue_create_infos = Vec::with_capacity(self.info.queue_families_info.len());
 

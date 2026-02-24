@@ -2,7 +2,7 @@ pub mod physical_device;
 pub mod queue;
 
 use ash::vk;
-use std::{error::Error, sync::Arc};
+use std::{error::Error, ffi::CStr, sync::Arc};
 
 use crate::{
     device::{
@@ -33,12 +33,14 @@ impl Drop for Device {
 }
 
 impl Device {
+    /// Extension `VK_KHR_portability_subset` is enabled by default for apple target.
+    /// Unsupported extensions are disabled automatically
     pub fn new(
         physical_device: Arc<PhysicalDevice>,
         features: vk::PhysicalDeviceFeatures,
+        extensions: Vec<&'static CStr>,
     ) -> Result<(Arc<Self>, QueuePool), Box<dyn Error>> {
-        let (device_handler, extensions) =
-            physical_device.create_device(features, physical_device.surface.is_some())?;
+        let (device_handler, extensions) = physical_device.create_device(features, extensions)?;
 
         let device = Arc::new(Self {
             handle: device_handler,

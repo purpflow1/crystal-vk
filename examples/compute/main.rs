@@ -28,7 +28,11 @@ use futures::executor;
 fn main() -> Result<(), Box<dyn Error>> {
     let instance = crystal_vk::instance::Instance::new()?;
     let physical_device = instance.enumerate_physical_devices(None)?[0].clone();
-    let (device, queues) = Device::new(physical_device, vk::PhysicalDeviceFeatures::default())?;
+    let (device, queues) = Device::new(
+        physical_device,
+        vk::PhysicalDeviceFeatures::default(),
+        vec![],
+    )?;
 
     let buffer_in = Buffer::new(
         device.clone(),
@@ -136,6 +140,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let command_buffer_builder = command_buffer_builder
         .bind_pipeline(pipeline)
         .bind_descriptor_sets(0, vec![descriptor_set.clone()])
+        .dispatch([1, 1, 1])
         .dispatch([1, 1, 1]);
 
     let future = command_buffer_builder.build(queue)?;

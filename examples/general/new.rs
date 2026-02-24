@@ -52,6 +52,11 @@ impl VulkanContext {
         let (device, queues) = Device::new(
             physical_device,
             vk::PhysicalDeviceFeatures::default().sampler_anisotropy(true),
+            vec![
+                vk::KHR_SWAPCHAIN_NAME,
+                vk::EXT_IMAGE_COMPRESSION_CONTROL_NAME,
+                vk::EXT_IMAGE_COMPRESSION_CONTROL_SWAPCHAIN_NAME,
+            ],
         )
         .unwrap();
 
