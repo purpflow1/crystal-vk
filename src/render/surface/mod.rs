@@ -1,12 +1,12 @@
-pub mod window;
-
 use std::{cell::Cell, error::Error, sync::Arc};
+
+use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 
 use crate::render::swapchain::Swapchain;
 
-pub(crate) struct Surface {
-    pub surface: ash::khr::surface::Instance,
-    pub surface_khr: ash::vk::SurfaceKHR,
+pub struct Surface {
+    pub(crate) surface: ash::khr::surface::Instance,
+    pub(crate) surface_khr: ash::vk::SurfaceKHR,
     // lifetime depends on Surface
     pub(crate) swapchain: Cell<Option<Arc<Swapchain>>>,
     _instance: Arc<crate::instance::Instance>,
@@ -22,23 +22,14 @@ impl Drop for Surface {
 }
 
 impl Surface {
-    pub fn new(instance: Arc<crate::instance::Instance>) -> Result<Arc<Self>, Box<dyn Error>> {
-        let ws_handlers = if let Some(h) = instance.ws_handlers {
-            h
-        } else {
-            return Err("cannot create surface: no window system handlers".into());
-        };
-
+    pub fn new(
+        instance: Arc<crate::instance::Instance>,
+        window: (RawWindowHandle, RawDisplayHandle),
+    ) -> Result<Arc<Self>, Box<dyn Error>> {
         let surface = ash::khr::surface::Instance::new(&instance.entry, &instance.handle);
         let surface_khr = unsafe {
-            ash_window::create_surface(
-                &instance.entry,
-                &instance.handle,
-                ws_handlers.display,
-                ws_handlers.window,
-                None,
-            )
-            .unwrap()
+            ash_window::create_surface(&instance.entry, &instance.handle, window.1, window.0, None)
+                .unwrap()
         };
 
         Ok(Arc::new(Self {

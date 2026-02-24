@@ -26,7 +26,9 @@ use crystal_vk::{
 use futures::executor;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let (device, queues) = Device::compute(|devices| devices[0].clone())?;
+    let instance = crystal_vk::instance::Instance::new()?;
+    let physical_device = instance.enumerate_physical_devices(None)?[0].clone();
+    let (device, queues) = Device::new(physical_device, vk::PhysicalDeviceFeatures::default())?;
 
     let buffer_in = Buffer::new(
         device.clone(),

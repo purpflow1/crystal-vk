@@ -14,6 +14,7 @@ pub struct SwapChainSupportDetails {
 pub struct PhysicalDeviceInfo {
     pub name: String,
     pub properties: vk::PhysicalDeviceProperties,
+    pub features: vk::PhysicalDeviceFeatures,
     pub memory_properties: vk::PhysicalDeviceMemoryProperties,
     pub queue_family_properties: Vec<vk::QueueFamilyProperties>,
     pub queue_families_info: Vec<QueueFamilyInfo>,
@@ -24,6 +25,7 @@ pub struct PhysicalDevice {
     pub info: PhysicalDeviceInfo,
     pub swap_chain_support_details: Option<SwapChainSupportDetails>,
     pub(crate) instance: Arc<Instance>,
+    pub(crate) surface: Option<Arc<Surface>>,
 }
 
 impl std::fmt::Debug for PhysicalDevice {
@@ -89,16 +91,22 @@ impl PhysicalDevice {
             .map(|physical_device| {
                 let (
                     properties,
+                    features,
                     device_name,
                     memory_properties,
                     queue_family_properties,
                     swap_chain_support_details,
                 ) = unsafe {
+                    let features = instance
+                        .handle
+                        .get_physical_device_features(*physical_device);
+
                     let properties = instance
                         .handle
                         .get_physical_device_properties(*physical_device);
                     (
                         properties,
+                        features,
                         std::ffi::CStr::from_ptr(properties.device_name.as_ptr())
                             .to_str()
                             .unwrap(),
@@ -163,6 +171,7 @@ impl PhysicalDevice {
                     info: PhysicalDeviceInfo {
                         name: device_name.to_string(),
                         properties,
+                        features,
                         memory_properties,
                         queue_family_properties,
                         queue_families_info: queue_families,
@@ -170,6 +179,7 @@ impl PhysicalDevice {
 
                     swap_chain_support_details,
                     instance: instance.clone(),
+                    surface: surface.clone(),
                 })
             })
             .collect();

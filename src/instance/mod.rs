@@ -4,14 +4,18 @@ mod layers;
 use std::{error::Error, sync::Arc};
 
 use ash::vk;
+use raw_window_handle::{HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle};
 
-use crate::render::surface::window::WindowSystemRawHandlers;
+use crate::{
+    device::physical_device::PhysicalDevice,
+    render::surface::{self, Surface},
+};
 
-pub(crate) struct Instance {
-    pub handle: ash::Instance,
-    pub entry: ash::Entry,
-    pub ws_handlers: Option<WindowSystemRawHandlers>,
+pub struct Instance {
+    pub(crate) handle: ash::Instance,
+    pub(crate) entry: ash::Entry,
     _debug_utils_messanger: Option<debug_callback::DebugUtilsMessanger>,
+    window: Option<(RawWindowHandle, RawDisplayHandle)>,
 }
 
 unsafe impl Send for Instance {}
@@ -33,13 +37,25 @@ impl Drop for Instance {
 }
 
 impl Instance {
-    pub unsafe fn enumerate_physical_devices(
-        &self,
-    ) -> Result<Vec<vk::PhysicalDevice>, Box<dyn Error>> {
-        Ok(unsafe { self.handle.enumerate_physical_devices() }?)
+    pub fn create_surface(self: &Arc<Self>) -> Result<Arc<surface::Surface>, Box<dyn Error>> {
+        surface::Surface::new(self.clone(), self.window.expect(""))
     }
 
-    pub fn new(ws_handlers: Option<WindowSystemRawHandlers>) -> Result<Arc<Self>, Box<dyn Error>> {
+    pub fn enumerate_physical_devices(
+        self: &Arc<Self>,
+        surface: Option<Arc<Surface>>,
+    ) -> Result<Vec<Arc<PhysicalDevice>>, Box<dyn Error>> {
+        let physical_devices_raw = unsafe { self.handle.enumerate_physical_devices() }?;
+
+        let physical_devices =
+            unsafe { PhysicalDevice::new(self.clone(), surface.clone(), physical_devices_raw) }?;
+
+        Ok(physical_devices)
+    }
+
+    fn new_in(
+        display: Option<(RawWindowHandle, RawDisplayHandle)>,
+    ) -> Result<Arc<Self>, Box<dyn Error>> {
         let entry = unsafe { ash::Entry::load() }?;
 
         let mut instance_extensions = vec![
@@ -51,8 +67,8 @@ impl Instance {
 
         let display_extensions;
 
-        if let Some(ws_handlers) = ws_handlers {
-            display_extensions = ash_window::enumerate_required_extensions(ws_handlers.display)?;
+        if let Some(display) = display {
+            display_extensions = ash_window::enumerate_required_extensions(display.1)?;
 
             display_extensions
                 .iter()
@@ -128,8 +144,21 @@ impl Instance {
         Ok(Arc::new(Self {
             handle: instance,
             entry,
-            ws_handlers,
             _debug_utils_messanger,
+            window: display,
         }))
+    }
+
+    pub fn new() -> Result<Arc<Self>, Box<dyn Error>> {
+        Self::new_in(None)
+    }
+
+    pub fn new_window<T: HasWindowHandle + HasDisplayHandle>(
+        window: &T,
+    ) -> Result<Arc<Self>, Box<dyn Error>> {
+        Self::new_in(Some((
+            window.window_handle()?.as_raw(),
+            window.display_handle()?.as_raw(),
+        )))
     }
 }
