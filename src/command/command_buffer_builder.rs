@@ -56,7 +56,7 @@ pub struct CommandBufferBuilder<State: BuilderState = Idle> {
 
 impl<State: Buildable> CommandBufferBuilder<State> {
     pub fn build(
-        self: Box<Self>,
+        self,
         queue: Arc<Mutex<Queue>>,
     ) -> Result<Box<CommandBufferFuture>, Box<dyn Error>> {
         unsafe {
@@ -81,7 +81,7 @@ impl CommandBufferBuilder<Idle> {
     pub fn new(
         command_buffer_allocator: Arc<CommandBufferAllocator>,
         queue_family_index: u32,
-    ) -> Result<Box<Self>, Box<dyn Error>> {
+    ) -> Result<Self, Box<dyn Error>> {
         let command_pool = command_buffer_allocator
             .pools
             .get(&queue_family_index)
@@ -111,19 +111,19 @@ impl CommandBufferBuilder<Idle> {
                 .begin_command_buffer(command_buffer, &begin_info)
         }?;
 
-        Ok(Box::new(Self {
+        Ok(Self {
             handle: command_buffer,
             command_buffer_allocator,
             bindings: VecDeque::new(),
             _state: PhantomData,
-        }))
+        })
     }
 
     pub fn begin_render_pass(
-        self: Box<Self>,
+        self,
         render_target: Arc<RenderTarget>,
         image_index: u32,
-    ) -> Box<CommandBufferBuilder<InRenderPass>> {
+    ) -> CommandBufferBuilder<InRenderPass> {
         let new = Box::new(CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
@@ -133,26 +133,23 @@ impl CommandBufferBuilder<Idle> {
         new.begin_render_pass_in(render_target, image_index)
     }
 
-    pub fn bind_pipeline(
-        self: Box<Self>,
-        pipeline: Arc<Pipeline>,
-    ) -> Box<CommandBufferBuilder<PipelineBound>> {
-        let new = Box::new(CommandBufferBuilder {
+    pub fn bind_pipeline(self, pipeline: Arc<Pipeline>) -> CommandBufferBuilder<PipelineBound> {
+        let new = CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
             _state: PhantomData,
-        });
+        };
         new.bind_pipeline_in(pipeline)
     }
 }
 
 impl<State: PipelineBoundState> CommandBufferBuilder<State> {
     pub fn bind_descriptor_sets(
-        mut self: Box<Self>,
+        mut self,
         first_set: u32,
         descriptor_sets: Vec<Arc<Mutex<DescriptorSet>>>,
-    ) -> Box<Self> {
+    ) -> Self {
         for descriptor_set in descriptor_sets.iter() {
             self.bindings.push_back(descriptor_set.clone());
         }
@@ -190,34 +187,31 @@ impl<State: PipelineBoundState> CommandBufferBuilder<State> {
 }
 
 impl CommandBufferBuilder<PipelineBound> {
-    pub fn bind_pipeline(
-        self: Box<Self>,
-        pipeline: Arc<Pipeline>,
-    ) -> Box<CommandBufferBuilder<PipelineBound>> {
-        let new = Box::new(CommandBufferBuilder {
+    pub fn bind_pipeline(self, pipeline: Arc<Pipeline>) -> CommandBufferBuilder<PipelineBound> {
+        let new = CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
             _state: PhantomData,
-        });
+        };
         new.bind_pipeline_in(pipeline)
     }
 
     pub fn begin_render_pass(
-        self: Box<Self>,
+        self,
         render_target: Arc<RenderTarget>,
         image_index: u32,
-    ) -> Box<CommandBufferBuilder<InRenderPassWithPipeline>> {
-        let new = Box::new(CommandBufferBuilder {
+    ) -> CommandBufferBuilder<InRenderPassWithPipeline> {
+        let new = CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
             _state: PhantomData,
-        });
+        };
         new.begin_render_pass_in(render_target, image_index)
     }
 
-    pub fn dispatch(self: Box<Self>, group_count: [u32; 3]) -> Box<Self> {
+    pub fn dispatch(self, group_count: [u32; 3]) -> Self {
         unsafe {
             self.command_buffer_allocator.device.handle.cmd_dispatch(
                 self.handle,
@@ -233,10 +227,10 @@ impl CommandBufferBuilder<PipelineBound> {
 
 impl<State: RenderPassBound> CommandBufferBuilder<State> {
     pub fn bind_viewport_and_scissor(
-        self: Box<Self>,
+        self,
         viewports: Vec<vk::Viewport>,
         scissors: Vec<vk::Rect2D>,
-    ) -> Box<Self> {
+    ) -> Self {
         unsafe {
             self.command_buffer_allocator
                 .device
@@ -250,10 +244,7 @@ impl<State: RenderPassBound> CommandBufferBuilder<State> {
         self
     }
 
-    pub fn bind_index_buffer(
-        mut self: Box<Self>,
-        buffer: Arc<RwLock<Buffer<IndexBuffer>>>,
-    ) -> Box<Self> {
+    pub fn bind_index_buffer(mut self, buffer: Arc<RwLock<Buffer<IndexBuffer>>>) -> Self {
         let buffer_lock = buffer.read().unwrap();
 
         self.bindings.push_back(buffer.clone());
@@ -268,10 +259,7 @@ impl<State: RenderPassBound> CommandBufferBuilder<State> {
         self
     }
 
-    pub fn bind_vertex_buffer(
-        mut self: Box<Self>,
-        buffer: Arc<RwLock<Buffer<VertexBuffer>>>,
-    ) -> Box<Self> {
+    pub fn bind_vertex_buffer(mut self, buffer: Arc<RwLock<Buffer<VertexBuffer>>>) -> Self {
         let buffer_lock = buffer.read().unwrap();
         self.bindings.push_back(buffer.clone());
         let buffer_raw = buffer_lock.handle;
@@ -289,34 +277,34 @@ impl<State: RenderPassBound> CommandBufferBuilder<State> {
 
 impl CommandBufferBuilder<InRenderPass> {
     pub fn bind_pipeline(
-        self: Box<Self>,
+        self,
         pipeline: Arc<Pipeline>,
-    ) -> Box<CommandBufferBuilder<InRenderPassWithPipeline>> {
-        let new = Box::new(CommandBufferBuilder {
+    ) -> CommandBufferBuilder<InRenderPassWithPipeline> {
+        let new = CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
             _state: PhantomData,
-        });
+        };
         new.bind_pipeline_in(pipeline)
     }
 }
 
 impl CommandBufferBuilder<InRenderPassWithPipeline> {
     pub fn bind_pipeline(
-        self: Box<Self>,
+        self,
         pipeline: Arc<Pipeline>,
-    ) -> Box<CommandBufferBuilder<InRenderPassWithPipeline>> {
-        let new = Box::new(CommandBufferBuilder {
+    ) -> CommandBufferBuilder<InRenderPassWithPipeline> {
+        let new = CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
             _state: PhantomData,
-        });
+        };
         new.bind_pipeline_in(pipeline)
     }
 
-    pub fn end_render_pass(self: Box<Self>) -> Box<CommandBufferBuilder<PipelineBound>> {
+    pub fn end_render_pass(self) -> CommandBufferBuilder<PipelineBound> {
         unsafe {
             self.command_buffer_allocator
                 .device
@@ -324,22 +312,22 @@ impl CommandBufferBuilder<InRenderPassWithPipeline> {
                 .cmd_end_render_pass(self.handle)
         };
 
-        Box::new(CommandBufferBuilder {
+        CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
             _state: PhantomData,
-        })
+        }
     }
 
     pub fn draw_indexed(
-        self: Box<Self>,
+        self,
         index_count: u32,
         instance_count: u32,
         first_index: u32,
         vertex_offset: i32,
         first_instance: u32,
-    ) -> Box<Self> {
+    ) -> Self {
         unsafe {
             self.command_buffer_allocator
                 .device
@@ -357,12 +345,12 @@ impl CommandBufferBuilder<InRenderPassWithPipeline> {
     }
 
     pub fn draw_indexed_inderect(
-        self: Box<Self>,
+        self,
         buffer: Arc<RwLock<Buffer<InderectBuffer>>>,
         offset: u64,
         draw_count: u32,
         stride: u32,
-    ) -> Box<Self> {
+    ) -> Self {
         unsafe {
             let lock = buffer.read().unwrap();
             self.command_buffer_allocator
@@ -375,10 +363,7 @@ impl CommandBufferBuilder<InRenderPassWithPipeline> {
 }
 
 impl CommandBufferBuilder<ImageStaged> {
-    pub fn generate_mipmaps(
-        mut self: Box<Self>,
-        image: Arc<Image>,
-    ) -> Box<CommandBufferBuilder<Idle>> {
+    pub fn generate_mipmaps(mut self, image: Arc<Image>) -> CommandBufferBuilder<Idle> {
         self.bindings.push_back(image.clone());
         let mut barrier = vk::ImageMemoryBarrier::default()
             .image(image.handle)
@@ -519,21 +504,17 @@ impl CommandBufferBuilder<ImageStaged> {
                 );
         }
 
-        Box::new(CommandBufferBuilder {
+        CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
             _state: PhantomData,
-        })
+        }
     }
 }
 
 impl CommandBufferBuilder {
-    fn transition_image_layout(
-        mut self: Box<Self>,
-        image: Arc<Image>,
-        layout_new: vk::ImageLayout,
-    ) -> Box<Self> {
+    fn transition_image_layout(mut self, image: Arc<Image>, layout_new: vk::ImageLayout) -> Self {
         self.bindings.push_back(image.clone());
 
         let layout_old = image.info.layout.get();
@@ -594,10 +575,10 @@ impl CommandBufferBuilder {
     }
 
     pub fn stage_image(
-        mut self: Box<Self>,
+        mut self,
         image: Arc<Image>,
         buffer: Arc<RwLock<Buffer<AnyBuffer>>>,
-    ) -> Box<CommandBufferBuilder<ImageStaged>> {
+    ) -> CommandBufferBuilder<ImageStaged> {
         self = self.transition_image_layout(image.clone(), vk::ImageLayout::TRANSFER_DST_OPTIMAL);
         self.bindings.push_back(image.clone());
         self.bindings.push_back(buffer.clone());
@@ -632,19 +613,19 @@ impl CommandBufferBuilder {
             );
         }
 
-        Box::new(CommandBufferBuilder {
+        CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
             _state: PhantomData,
-        })
+        }
     }
 
     fn begin_render_pass_in<T: RenderPassBound>(
-        mut self: Box<Self>,
+        mut self,
         render_target: Arc<RenderTarget>,
         image_index: u32,
-    ) -> Box<CommandBufferBuilder<T>> {
+    ) -> CommandBufferBuilder<T> {
         self.bindings.push_back(render_target.clone());
         let color = 0.3f32;
         let clear_value_color = vk::ClearValue {
@@ -683,18 +664,18 @@ impl CommandBufferBuilder {
                 )
         }
 
-        Box::new(CommandBufferBuilder {
+        CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
             _state: PhantomData,
-        })
+        }
     }
 
     fn bind_pipeline_in<OutState: PipelineBoundState>(
-        mut self: Box<Self>,
+        mut self,
         pipeline: Arc<Pipeline>,
-    ) -> Box<CommandBufferBuilder<OutState>> {
+    ) -> CommandBufferBuilder<OutState> {
         self.bindings.push_back(pipeline.clone());
         unsafe {
             self.command_buffer_allocator
@@ -703,11 +684,11 @@ impl CommandBufferBuilder {
                 .cmd_bind_pipeline(self.handle, pipeline.bind_point, pipeline.handle)
         };
 
-        Box::new(CommandBufferBuilder {
+        CommandBufferBuilder {
             handle: self.handle,
             command_buffer_allocator: self.command_buffer_allocator,
             bindings: self.bindings,
             _state: PhantomData,
-        })
+        }
     }
 }
