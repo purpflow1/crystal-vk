@@ -336,7 +336,7 @@ impl VulkanContext {
         let mut future =
             CommandBufferBuilder::new(command_allocator.clone(), transfer_queue_family_info.index)
                 .unwrap()
-                .stage_image(image.clone(), image_buffer.clone())
+                .copy_buffer_to_image(image.clone(), image_buffer.clone())
                 .generate_mipmaps(image.clone())
                 .build(transfer_queue)
                 .unwrap();

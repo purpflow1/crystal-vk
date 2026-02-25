@@ -244,7 +244,11 @@ impl<State: RenderPassBound> CommandBufferBuilder<State> {
         self
     }
 
-    pub fn bind_index_buffer(mut self, buffer: Arc<RwLock<Buffer<IndexBuffer>>>) -> Self {
+    pub fn bind_index_buffer(
+        mut self,
+        buffer: Arc<RwLock<Buffer<IndexBuffer>>>,
+        index_type: vk::IndexType,
+    ) -> Self {
         let buffer_lock = buffer.read().unwrap();
 
         self.bindings.push_back(buffer.clone());
@@ -253,7 +257,7 @@ impl<State: RenderPassBound> CommandBufferBuilder<State> {
             self.command_buffer_allocator
                 .device
                 .handle
-                .cmd_bind_index_buffer(self.handle, buffer_lock.handle, 0, vk::IndexType::UINT16);
+                .cmd_bind_index_buffer(self.handle, buffer_lock.handle, 0, index_type);
         };
 
         self
@@ -514,7 +518,11 @@ impl CommandBufferBuilder<ImageStaged> {
 }
 
 impl CommandBufferBuilder {
-    fn transition_image_layout(mut self, image: Arc<Image>, layout_new: vk::ImageLayout) -> Self {
+    pub fn transition_image_layout(
+        mut self,
+        image: Arc<Image>,
+        layout_new: vk::ImageLayout,
+    ) -> Self {
         self.bindings.push_back(image.clone());
 
         let layout_old = image.info.layout.get();
@@ -574,7 +582,54 @@ impl CommandBufferBuilder {
         self
     }
 
-    pub fn stage_image(
+    pub fn copy_image_to_buffer(
+        mut self,
+        buffer: Arc<RwLock<Buffer<AnyBuffer>>>,
+        image: Arc<Image>,
+    ) -> CommandBufferBuilder<ImageStaged> {
+        self = self.transition_image_layout(image.clone(), vk::ImageLayout::TRANSFER_SRC_OPTIMAL);
+        self.bindings.push_back(image.clone());
+        self.bindings.push_back(buffer.clone());
+
+        let region = vk::BufferImageCopy::default()
+            .buffer_offset(0)
+            .buffer_row_length(0)
+            .buffer_image_height(0)
+            .image_subresource(
+                vk::ImageSubresourceLayers::default()
+                    .aspect_mask(vk::ImageAspectFlags::COLOR)
+                    .mip_level(0)
+                    .base_array_layer(0)
+                    .layer_count(1),
+            )
+            .image_offset(vk::Offset3D::default())
+            .image_extent(vk::Extent3D {
+                width: image.info.extent[0],
+                height: image.info.extent[1],
+                depth: 1,
+            });
+
+        let lock = buffer.read().unwrap();
+
+        unsafe {
+            lock.device.handle.cmd_copy_image_to_buffer(
+                self.handle,
+                image.handle,
+                vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+                lock.handle,
+                &[region],
+            );
+        }
+
+        CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            _state: PhantomData,
+        }
+    }
+
+    pub fn copy_buffer_to_image(
         mut self,
         image: Arc<Image>,
         buffer: Arc<RwLock<Buffer<AnyBuffer>>>,
