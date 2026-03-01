@@ -53,4 +53,8 @@ impl Device {
         let queues = Queue::instantiate(device.clone());
         Ok((device, queues))
     }
+
+    pub unsafe fn as_raw(&self) -> &ash::Device {
+        &self.handle
+    }
 }
