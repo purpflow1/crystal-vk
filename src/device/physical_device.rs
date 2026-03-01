@@ -170,9 +170,9 @@ impl PhysicalDevice {
             .enumerate()
             .filter(|(_, f)| f.queue_count > 0)
         {
-            let index = idx as u32; // ⚠️ This is the enumeration index, not the real queue family index!
+            let index = idx as u32; // ! This is the enumeration index, not the real queue family index!
 
-            let present_support = surface.map_or(false, |surface| unsafe {
+            let present_support = surface.is_some_and(|surface| unsafe {
                 surface
                     .surface
                     .get_physical_device_surface_support(device_handle, index, surface.surface_khr)
