@@ -26,7 +26,7 @@ pub struct ImageInfo {
 pub struct ImageCreateInfo {
     pub width: u32,
     pub height: u32,
-    pub generate_mips: bool,
+    pub generate_mipmap_levels: bool,
     pub image_type: ImageType,
 
     pub samples: vk::SampleCountFlags,
@@ -46,7 +46,7 @@ impl Default for ImageCreateInfo {
         Self {
             width: 1,
             height: 1,
-            generate_mips: false,
+            generate_mipmap_levels: false,
             image_type: ImageType::Sampled,
             samples: vk::SampleCountFlags::TYPE_1,
             format: vk::Format::UNDEFINED,
@@ -115,7 +115,7 @@ impl Image {
         let create_info = ImageCreateInfo {
             width: extent[0],
             height: extent[1],
-            generate_mips: false,
+            generate_mipmap_levels: false,
             image_type: ImageType::Sampled,
             format,
             samples: vk::SampleCountFlags::TYPE_1,
@@ -162,7 +162,7 @@ impl Image {
         let create_info = ImageCreateInfo {
             width: extent[0],
             height: extent[1],
-            generate_mips,
+            generate_mipmap_levels: generate_mips,
             image_type: ImageType::Sampled,
             format,
             samples: vk::SampleCountFlags::TYPE_1,
@@ -189,7 +189,7 @@ impl Image {
         let image_create_info = ImageCreateInfo {
             width: extent[0],
             height: extent[1],
-            generate_mips: false,
+            generate_mipmap_levels: false,
             format: image_format,
             samples,
             tiling: vk::ImageTiling::OPTIMAL,
@@ -224,7 +224,7 @@ impl Image {
         let image_create_info = ImageCreateInfo {
             width: extent[0],
             height: extent[1],
-            generate_mips: false,
+            generate_mipmap_levels: false,
             format: depth_format,
             samples,
             tiling,
@@ -271,7 +271,7 @@ impl Image {
             .height(image_create_info.height)
             .depth(1);
 
-        let mip_levels = if image_create_info.generate_mips {
+        let mip_levels = if image_create_info.generate_mipmap_levels {
             (image_create_info.height as f32)
                 .max(image_create_info.width as f32)
                 .log2()
