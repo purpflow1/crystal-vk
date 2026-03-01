@@ -647,7 +647,7 @@ impl CommandBufferBuilder {
                     .aspect_mask(vk::ImageAspectFlags::COLOR)
                     .mip_level(0)
                     .base_array_layer(0)
-                    .layer_count(1),
+                    .layer_count(image.info.array_layers),
             )
             .image_offset(vk::Offset3D::default())
             .image_extent(vk::Extent3D {
