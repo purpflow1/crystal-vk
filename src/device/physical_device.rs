@@ -81,110 +81,127 @@ impl PhysicalDevice {
         })
     }
 
+    /// # Safety
+    /// - `instance` must be a valid Vulkan instance handle.
+    /// - `physical_devices` must be valid handles retrieved from the instance.
+    /// - If `surface` is provided, it must be a valid surface created from the same instance.
     pub(crate) unsafe fn new(
         instance: Arc<Instance>,
         surface: Option<Arc<Surface>>,
         physical_devices: Vec<vk::PhysicalDevice>,
     ) -> Result<Vec<Arc<Self>>, Box<dyn Error>> {
-        let physical_devices = physical_devices
-            .iter()
-            .map(|physical_device| {
-                let (
+        let mut devices = Vec::with_capacity(physical_devices.len());
+
+        for &device_handle in &physical_devices {
+            // Gather basic device properties
+            let (properties, features, memory_properties, queue_family_properties) = unsafe {
+                let features = instance.handle.get_physical_device_features(device_handle);
+                let properties = instance
+                    .handle
+                    .get_physical_device_properties(device_handle);
+                let memory_properties = instance
+                    .handle
+                    .get_physical_device_memory_properties(device_handle);
+                let queue_family_properties = instance
+                    .handle
+                    .get_physical_device_queue_family_properties(device_handle);
+                (
                     properties,
                     features,
-                    device_name,
                     memory_properties,
                     queue_family_properties,
-                    swap_chain_support_details,
-                ) = unsafe {
-                    let features = instance
-                        .handle
-                        .get_physical_device_features(*physical_device);
+                )
+            };
 
-                    let properties = instance
-                        .handle
-                        .get_physical_device_properties(*physical_device);
-                    (
-                        properties,
-                        features,
-                        std::ffi::CStr::from_ptr(properties.device_name.as_ptr())
-                            .to_str()
-                            .unwrap(),
-                        instance
-                            .handle
-                            .get_physical_device_memory_properties(*physical_device),
-                        instance
-                            .handle
-                            .get_physical_device_queue_family_properties(*physical_device),
-                        surface.clone().map(|surface| {
-                            Self::query_swap_chain_support(*physical_device, surface).unwrap()
-                        }),
-                    )
-                };
+            // Device name (panics if not valid UTF-8, preserving original behavior)
+            let device_name = unsafe {
+                CStr::from_ptr(properties.device_name.as_ptr())
+                    .to_str()
+                    .expect("Device name is not valid UTF-8")
+                    .to_string()
+            };
 
-                let mut queue_families = Vec::<QueueFamilyInfo>::new();
+            // Query swap chain support if a surface is available (panics on error, preserving original behavior)
+            let swap_chain_support_details = surface.as_ref().map(|s| {
+                Self::query_swap_chain_support(device_handle, s.clone())
+                    .expect("Failed to query swap chain support")
+            });
 
-                for (index, family) in queue_family_properties
-                    .iter()
-                    .filter(|f| f.queue_count > 0)
-                    .enumerate()
-                {
-                    let index = index as u32;
+            // Build queue family info (preserves the original logic, including the index bug)
+            let queue_families_info = Self::build_queue_families_info(
+                &queue_family_properties,
+                device_handle,
+                surface.as_ref(),
+            );
 
-                    let present_support = unsafe {
-                        match surface.clone() {
-                            Some(surface) => surface
-                                .surface
-                                .get_physical_device_surface_support(
-                                    *physical_device,
-                                    index,
-                                    surface.surface_khr,
-                                )
-                                .unwrap(),
-                            None => false,
-                        }
-                    };
+            let info = PhysicalDeviceInfo {
+                name: device_name,
+                properties,
+                features,
+                memory_properties,
+                queue_family_properties,
+                queue_families_info,
+            };
 
-                    let mut to_push = false;
+            devices.push(Arc::new(Self {
+                handle: device_handle,
+                info,
+                swap_chain_support_details,
+                instance: instance.clone(),
+                surface: surface.clone(),
+            }));
+        }
 
-                    queue_families.iter_mut().for_each(|info| {
-                        if info.index == index {
-                            info.flags |= family.queue_flags;
-                            info.present_support = present_support
-                        } else if !info.flags.intersects(family.queue_flags) {
-                            to_push = true;
-                        }
-                    });
+        Ok(devices)
+    }
 
-                    if to_push || queue_families.is_empty() {
-                        queue_families.push(QueueFamilyInfo {
-                            flags: family.queue_flags,
-                            index,
-                            queue_count: family.queue_count,
-                            present_support,
-                        });
-                    }
+    /// Builds the queue family information for a physical device.
+    /// This function replicates the original (buggy) logic exactly to preserve external behavior.
+    /// The index used is the enumeration index after filtering, not the real queue family index.
+    fn build_queue_families_info(
+        queue_family_properties: &[vk::QueueFamilyProperties],
+        device_handle: vk::PhysicalDevice,
+        surface: Option<&Arc<Surface>>,
+    ) -> Vec<QueueFamilyInfo> {
+        let mut queue_families = Vec::<QueueFamilyInfo>::new();
+
+        for (idx, family) in queue_family_properties
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| f.queue_count > 0)
+        {
+            let index = idx as u32; // ⚠️ This is the enumeration index, not the real queue family index!
+
+            let present_support = surface.map_or(false, |surface| unsafe {
+                surface
+                    .surface
+                    .get_physical_device_surface_support(device_handle, index, surface.surface_khr)
+                    .expect("Failed to query surface support")
+            });
+
+            let mut to_push = false;
+
+            // Update existing entries or decide to push a new one
+            for info in &mut queue_families {
+                if info.index == index {
+                    info.flags |= family.queue_flags;
+                    info.present_support = present_support;
+                } else if !info.flags.intersects(family.queue_flags) {
+                    to_push = true;
                 }
+            }
 
-                Arc::new(Self {
-                    handle: *physical_device,
-                    info: PhysicalDeviceInfo {
-                        name: device_name.to_string(),
-                        properties,
-                        features,
-                        memory_properties,
-                        queue_family_properties,
-                        queue_families_info: queue_families,
-                    },
+            if to_push || queue_families.is_empty() {
+                queue_families.push(QueueFamilyInfo {
+                    flags: family.queue_flags,
+                    index,
+                    queue_count: family.queue_count,
+                    present_support,
+                });
+            }
+        }
 
-                    swap_chain_support_details,
-                    instance: instance.clone(),
-                    surface: surface.clone(),
-                })
-            })
-            .collect();
-
-        Ok(physical_devices)
+        queue_families
     }
 
     fn query_extensions_support(
