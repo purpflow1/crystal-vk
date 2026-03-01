@@ -27,7 +27,6 @@ use crystal_vk::{
 use futures::executor;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let now = SystemTime::now();
     let instance = crystal_vk::instance::Instance::new()?;
     let physical_device = instance.enumerate_physical_devices(None)?[0].clone();
     let (device, queues) = Device::new(
@@ -35,8 +34,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         vk::PhysicalDeviceFeatures::default(),
         vec![vk::KHR_DEFERRED_HOST_OPERATIONS_NAME],
     )?;
-
-    println!("device creation: {} ms", now.elapsed().unwrap().as_millis());
 
     let buffer_in = Buffer::new(
         device.clone(),
@@ -108,13 +105,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let pipeline_layout = PipelineLayout::new(descriptor_pool, vec![descriptor_set_layout])?;
 
-    let now = SystemTime::now();
     let pipeline = Pipeline::new_compute(pipeline_layout.clone(), shader.clone(), None)?;
-
-    println!(
-        "pipeline creation: {} ms",
-        now.elapsed().unwrap().as_millis()
-    );
 
     let mut lock = buffer_in.write().unwrap();
     let memory = lock.bind_memory(0..512).unwrap();
@@ -145,7 +136,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let command_buffer_builder = command_buffer_builder
         .bind_pipeline(pipeline)
         .bind_descriptor_sets(0, vec![descriptor_set.clone()])
-        .dispatch([1, 1, 1])
         .dispatch([1, 1, 1]);
 
     let future = command_buffer_builder.build(queue)?;
