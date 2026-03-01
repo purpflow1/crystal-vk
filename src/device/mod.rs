@@ -54,6 +54,8 @@ impl Device {
         Ok((device, queues))
     }
 
+    /// # Safety
+    /// Use at your own risk
     pub unsafe fn as_raw(&self) -> &ash::Device {
         &self.handle
     }
