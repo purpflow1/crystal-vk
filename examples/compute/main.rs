@@ -4,7 +4,6 @@ use std::{
     ffi::CString,
     fs::File,
     io::{BufReader, Read},
-    time::SystemTime,
 };
 
 use crystal_vk::{
