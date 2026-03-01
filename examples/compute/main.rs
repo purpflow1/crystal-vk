@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let (device, queues) = Device::new(
         physical_device,
         vk::PhysicalDeviceFeatures::default(),
-        vec![],
+        vec![vk::KHR_DEFERRED_HOST_OPERATIONS_NAME],
     )?;
 
     let buffer_in = Buffer::new(
