@@ -20,6 +20,7 @@ pub struct ImageInfo {
     pub format: vk::Format,
     pub layout: Cell<vk::ImageLayout>,
     pub mip_levels: u32,
+    pub array_layers: u32,
 }
 
 pub struct ImageCreateInfo {
@@ -34,6 +35,30 @@ pub struct ImageCreateInfo {
     pub aspect_mask: vk::ImageAspectFlags,
     pub usage: vk::ImageUsageFlags,
     pub mem_property: vk::MemoryPropertyFlags,
+
+    pub array_layers: u32,
+    pub flags: vk::ImageCreateFlags,
+    pub view_type: vk::ImageViewType,
+}
+
+impl Default for ImageCreateInfo {
+    fn default() -> Self {
+        Self {
+            width: 1,
+            height: 1,
+            generate_mips: false,
+            image_type: ImageType::Sampled,
+            samples: vk::SampleCountFlags::TYPE_1,
+            format: vk::Format::UNDEFINED,
+            tiling: vk::ImageTiling::OPTIMAL,
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            usage: vk::ImageUsageFlags::empty(),
+            mem_property: vk::MemoryPropertyFlags::DEVICE_LOCAL,
+            array_layers: 1,
+            flags: vk::ImageCreateFlags::empty(),
+            view_type: vk::ImageViewType::TYPE_2D,
+        }
+    }
 }
 
 pub struct Image {
@@ -63,6 +88,7 @@ impl Drop for Image {
 }
 
 impl Image {
+    /// Creates a simple 2D sampled image (existing behaviour).
     pub fn new(
         device: Arc<Device>,
         extent: [u32; 2],
@@ -100,6 +126,55 @@ impl Image {
                 | vk::ImageUsageFlags::SAMPLED
                 | vk::ImageUsageFlags::COLOR_ATTACHMENT,
             mem_property: vk::MemoryPropertyFlags::DEVICE_LOCAL,
+            array_layers: 1,
+            flags: vk::ImageCreateFlags::empty(),
+            view_type: vk::ImageViewType::TYPE_2D,
+        };
+
+        Self::new_in(device, create_info)
+    }
+
+    /// Creates a cubemap with 6 faces (array layers) and the CUBE_COMPATIBLE flag.
+    pub fn new_cubemap(
+        device: Arc<Device>,
+        extent: [u32; 2],
+        format: vk::Format,
+        generate_mips: bool,
+    ) -> Result<Arc<Self>, Box<dyn Error>> {
+        let format_properties = unsafe {
+            device
+                .instance
+                .handle
+                .get_physical_device_format_properties(device.physical_device.handle, format)
+        };
+
+        if format_properties.optimal_tiling_features
+            & vk::FormatFeatureFlags::SAMPLED_IMAGE_FILTER_LINEAR
+            != vk::FormatFeatureFlags::SAMPLED_IMAGE_FILTER_LINEAR
+        {
+            return Err(format!(
+                "no suitable device for image linear filtering with format: {:?}",
+                format
+            )
+            .into());
+        }
+
+        let create_info = ImageCreateInfo {
+            width: extent[0],
+            height: extent[1],
+            generate_mips,
+            image_type: ImageType::Sampled,
+            format,
+            samples: vk::SampleCountFlags::TYPE_1,
+            tiling: vk::ImageTiling::OPTIMAL,
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            usage: vk::ImageUsageFlags::TRANSFER_SRC
+                | vk::ImageUsageFlags::TRANSFER_DST
+                | vk::ImageUsageFlags::SAMPLED,
+            mem_property: vk::MemoryPropertyFlags::DEVICE_LOCAL,
+            array_layers: 6,
+            flags: vk::ImageCreateFlags::CUBE_COMPATIBLE,
+            view_type: vk::ImageViewType::CUBE,
         };
 
         Self::new_in(device, create_info)
@@ -123,6 +198,9 @@ impl Image {
                 | vk::ImageUsageFlags::COLOR_ATTACHMENT,
             mem_property: vk::MemoryPropertyFlags::DEVICE_LOCAL,
             image_type: ImageType::FramebufferColor,
+            array_layers: 1,
+            flags: vk::ImageCreateFlags::empty(),
+            view_type: vk::ImageViewType::TYPE_2D,
         };
 
         Self::new_in(device, image_create_info)
@@ -154,6 +232,9 @@ impl Image {
             usage: vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
             mem_property: vk::MemoryPropertyFlags::DEVICE_LOCAL,
             image_type: ImageType::FramebufferDepth,
+            array_layers: 1,
+            flags: vk::ImageCreateFlags::empty(),
+            view_type: vk::ImageViewType::TYPE_2D,
         };
 
         Self::new_in(device, image_create_info)
@@ -175,6 +256,7 @@ impl Image {
                 format: image_format,
                 layout: Cell::new(vk::ImageLayout::READ_ONLY_OPTIMAL),
                 mip_levels: 0,
+                array_layers: 1,
             },
             device,
         })
@@ -207,13 +289,14 @@ impl Image {
             .image_type(ty)
             .extent(extent)
             .mip_levels(mip_levels)
-            .array_layers(1)
+            .array_layers(image_create_info.array_layers)
             .format(image_create_info.format)
             .tiling(image_create_info.tiling)
             .initial_layout(vk::ImageLayout::UNDEFINED)
             .usage(image_create_info.usage)
             .sharing_mode(vk::SharingMode::EXCLUSIVE)
             .samples(image_create_info.samples)
+            .flags(image_create_info.flags)
             .push_next(&mut compression_control);
 
         let image = unsafe { device.handle.create_image(&create_info, None) }?;
@@ -233,7 +316,7 @@ impl Image {
 
         let image_view_create_info = vk::ImageViewCreateInfo::default()
             .image(image)
-            .view_type(vk::ImageViewType::TYPE_2D)
+            .view_type(image_create_info.view_type)
             .format(image_create_info.format)
             .subresource_range(
                 vk::ImageSubresourceRange::default()
@@ -241,7 +324,7 @@ impl Image {
                     .base_mip_level(0)
                     .level_count(mip_levels)
                     .base_array_layer(0)
-                    .layer_count(1),
+                    .layer_count(image_create_info.array_layers),
             );
 
         let image_view = unsafe {
@@ -260,6 +343,7 @@ impl Image {
                 format: image_create_info.format,
                 layout: Cell::new(vk::ImageLayout::UNDEFINED),
                 mip_levels,
+                array_layers: image_create_info.array_layers,
             },
             device,
         }))
