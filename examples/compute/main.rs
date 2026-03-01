@@ -23,7 +23,6 @@ use crystal_vk::{
     },
     vk,
 };
-use futures::executor;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let instance = crystal_vk::instance::Instance::new()?;
@@ -137,8 +136,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         .bind_descriptor_sets(0, vec![descriptor_set.clone()])
         .dispatch([1, 1, 1]);
 
-    let future = command_buffer_builder.build(queue)?;
-    executor::block_on(future)?;
+    let mut future = command_buffer_builder.build(queue)?;
+    future.flush().unwrap();
+    future.wait().unwrap();
 
     let mut lock = buffer_out.write().unwrap();
     let memory = lock.bind_memory(0..size_of::<u32>() as u64 * 8)?;
