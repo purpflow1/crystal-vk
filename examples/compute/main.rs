@@ -101,7 +101,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         binary.as_binary().to_vec(),
     )?;
 
-    let pipeline_layout = PipelineLayout::new(descriptor_pool, vec![descriptor_set_layout])?;
+    let pipeline_layout = PipelineLayout::new(descriptor_pool, vec![descriptor_set_layout], &[])?;
 
     let pipeline = Pipeline::new_compute(pipeline_layout.clone(), shader.clone(), None)?;
 

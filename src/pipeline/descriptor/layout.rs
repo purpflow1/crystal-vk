@@ -34,6 +34,7 @@ impl PipelineLayout {
     pub fn new(
         descriptor_pool: Arc<Mutex<DescriptorPool>>,
         descriptor_set_layouts: Vec<Arc<DescriptorSetLayout>>,
+        push_constant_range: &[vk::PushConstantRange],
     ) -> Result<Arc<Self>, Box<dyn Error>> {
         let descriptor_set_layouts_raw = descriptor_set_layouts
             .iter()
@@ -42,8 +43,9 @@ impl PipelineLayout {
 
         let lock = descriptor_pool.lock().unwrap();
 
-        let create_info =
-            vk::PipelineLayoutCreateInfo::default().set_layouts(&descriptor_set_layouts_raw);
+        let create_info = vk::PipelineLayoutCreateInfo::default()
+            .set_layouts(&descriptor_set_layouts_raw)
+            .push_constant_ranges(push_constant_range);
 
         let device = lock.device.clone();
 

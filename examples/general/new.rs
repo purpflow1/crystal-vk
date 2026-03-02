@@ -115,6 +115,7 @@ impl VulkanContext {
         let per_object_pipeline_layout = PipelineLayout::new(
             descriptor_pool.clone(),
             vec![per_object_descriptor_set_layout],
+            &[],
         )
         .unwrap();
 
@@ -432,6 +433,7 @@ impl VulkanContext {
         let post_process_pipeline_layout = PipelineLayout::new(
             descriptor_pool.clone(),
             vec![post_process_descriptor_set_layout],
+            &[],
         )
         .unwrap();
 
