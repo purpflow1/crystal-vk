@@ -1,6 +1,12 @@
 pub mod sampler;
 
-use std::{cell::Cell, error::Error, sync::Arc};
+use std::{
+    cell::Cell,
+    error::Error,
+    ops::Range,
+    ptr,
+    sync::{Arc, Mutex},
+};
 
 use ash::vk;
 
@@ -65,6 +71,7 @@ pub struct Image {
     pub(crate) image_view: vk::ImageView,
     pub(crate) handle: vk::Image,
     pub(crate) memory: vk::DeviceMemory,
+    pub mapped: Mutex<*mut u8>,
     pub info: ImageInfo,
 
     pub device: Arc<Device>,
@@ -123,7 +130,8 @@ impl Image {
             tiling: vk::ImageTiling::OPTIMAL,
             aspect_mask: vk::ImageAspectFlags::COLOR,
             usage,
-            mem_property: vk::MemoryPropertyFlags::DEVICE_LOCAL,
+            mem_property: vk::MemoryPropertyFlags::DEVICE_LOCAL
+                | vk::MemoryPropertyFlags::HOST_VISIBLE,
             array_layers: 1,
             flags: vk::ImageCreateFlags::empty(),
             view_type: vk::ImageViewType::TYPE_2D,
@@ -169,7 +177,8 @@ impl Image {
             usage: vk::ImageUsageFlags::TRANSFER_SRC
                 | vk::ImageUsageFlags::TRANSFER_DST
                 | vk::ImageUsageFlags::SAMPLED,
-            mem_property: vk::MemoryPropertyFlags::DEVICE_LOCAL,
+            mem_property: vk::MemoryPropertyFlags::DEVICE_LOCAL
+                | vk::MemoryPropertyFlags::HOST_VISIBLE,
             array_layers: 6,
             flags: vk::ImageCreateFlags::CUBE_COMPATIBLE,
             view_type: vk::ImageViewType::CUBE,
@@ -248,6 +257,7 @@ impl Image {
             image_view,
             handle: vk::Image::null(),
             memory: vk::DeviceMemory::null(),
+            mapped: Mutex::new(ptr::null_mut()),
             info: ImageInfo {
                 extent,
                 typ: ImageType::Swapchain,
@@ -335,6 +345,7 @@ impl Image {
             image_view,
             handle: image,
             memory: image_memory,
+            mapped: Mutex::new(ptr::null_mut()),
             info: ImageInfo {
                 extent: [image_create_info.width, image_create_info.height],
                 typ: image_create_info.image_type,
@@ -345,5 +356,26 @@ impl Image {
             },
             device,
         }))
+    }
+
+    pub fn bind_memory<'a>(&self, range: Range<u64>) -> Result<&'a mut [u8], Box<dyn Error>> {
+        let lock = self.mapped.lock().unwrap();
+        if !lock.is_null() {
+            unsafe { self.device.handle.unmap_memory(self.memory) };
+        }
+
+        let mapped = unsafe {
+            self.device.handle.map_memory(
+                self.memory,
+                range.start,
+                range.end - range.start,
+                vk::MemoryMapFlags::empty(),
+            )
+        }? as *mut u8;
+
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(mapped, (range.end - range.start) as usize) };
+
+        Ok(slice)
     }
 }
