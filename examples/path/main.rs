@@ -84,7 +84,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .unwrap()
         .bind_storage_image(image.clone(), 0, 0, 1)?;
 
-    print!("Shader compiling...");
+    println!("Shader compiling...");
     let mut reader = BufReader::new(std::fs::File::open("examples/shaders/path.comp")?);
     let mut source = String::new();
     reader.read_to_string(&mut source).unwrap();
@@ -126,7 +126,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
     let pipeline = Pipeline::new_compute(pipeline_layout, shader, None)?;
 
-    println!("Done!");
+    println!("Done!\nRendering...");
 
     let mut command_buffer = CommandBufferBuilder::new(allocator.clone(), 0)?
         .bind_pipeline(pipeline)
@@ -144,12 +144,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         .dispatch([(width + 7) / 8, (height + 7) / 8, 1])
         .build(queue.clone())?;
 
-    print!("Rendering...");
-
     command_buffer.flush()?;
     command_buffer.wait()?;
 
-    print!("Done!\nSaving...");
+    println!("Done!\nSaving...");
 
     let w = BufWriter::new(
         File::options()
