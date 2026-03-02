@@ -1,5 +1,3 @@
-#![feature(f16)]
-
 use std::{
     error::Error,
     ffi::CString,
@@ -47,7 +45,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let image = crystal_vk::image::Image::new(
         device.clone(),
         [width, height],
-        vk::Format::R16G16B16A16_SFLOAT,
+        vk::Format::R32G32B32A32_SFLOAT,
         vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::TRANSFER_SRC,
     )?;
 
@@ -160,7 +158,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .open("examples/path/out.png")?,
     );
 
-    let size = (width * height * 8) as u64;
+    let size = (width * height * 16) as u64;
 
     let buffer = crystal_vk::buffer::Buffer::<AnyBuffer>::new(
         device,
@@ -190,15 +188,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut data = Vec::new();
 
-    for offset in (0..size).step_by(8) {
+    for offset in (0..size).step_by(16) {
         let offset = offset as usize;
-        let r: [u8; 2] = memory[offset..offset + 2].try_into().unwrap();
-        let g: [u8; 2] = memory[offset + 2..offset + 4].try_into().unwrap();
-        let b: [u8; 2] = memory[offset + 4..offset + 6].try_into().unwrap();
+        let r: [u8; 4] = memory[offset..offset + 4].try_into().unwrap();
+        let g: [u8; 4] = memory[offset + 4..offset + 8].try_into().unwrap();
+        let b: [u8; 4] = memory[offset + 8..offset + 12].try_into().unwrap();
 
-        let r = f16::from_le_bytes(r).clamp(0., 1.) as f32;
-        let g = f16::from_le_bytes(g).clamp(0., 1.) as f32;
-        let b = f16::from_le_bytes(b).clamp(0., 1.) as f32;
+        let r = f32::from_le_bytes(r).clamp(0., 1.);
+        let g = f32::from_le_bytes(g).clamp(0., 1.);
+        let b = f32::from_le_bytes(b).clamp(0., 1.);
 
         let r = (r * 65535.0) as u16;
         let g = (g * 65535.0) as u16;
