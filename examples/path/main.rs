@@ -1,3 +1,5 @@
+#![feature(f16)]
+
 use std::{
     error::Error,
     ffi::CString,
@@ -22,6 +24,9 @@ use crystal_vk::{
         shader::Shader,
     },
 };
+
+const SAMPLES: i32 = 1024;
+const FRAMES: u32 = 128;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let width = 3000;
@@ -106,7 +111,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     struct PushConsts {
         time: f32,
         frame_num: u32,
-        aperture: f32,
         focal_dist: f32,
         samples_per_frame: i32,
     }
@@ -123,6 +127,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
     let pipeline = Pipeline::new_compute(pipeline_layout, shader, None)?;
 
+    print!("Rendering...");
+
     let mut command_buffer = CommandBufferBuilder::new(allocator.clone(), 0)?
         .bind_pipeline(pipeline)
         .bind_descriptor_sets(0, vec![descriptor_set])
@@ -131,16 +137,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             0,
             bytemuck::bytes_of(&PushConsts {
                 time: SystemTime::UNIX_EPOCH.elapsed().unwrap().as_secs_f32(),
-                frame_num: 1,
-                aperture: 0.,
+                frame_num: FRAMES,
                 focal_dist: 1.,
-                samples_per_frame: 8192,
+                samples_per_frame: SAMPLES,
             }),
         )
         .dispatch([(width + 7) / 8, (height + 7) / 8, 1])
         .build(queue.clone())?;
-
-    print!("Rendering...");
 
     command_buffer.flush()?;
     command_buffer.wait()?;
@@ -153,11 +156,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             .create(true)
             .open("examples/path/out.png")?,
     );
-    let mut encoder = png::Encoder::new(w, width, height);
-    encoder.set_color(png::ColorType::Rgba);
-    encoder.set_depth(png::BitDepth::Sixteen);
-    encoder.set_source_gamma(png::ScaledFloat::from_scaled(45455));
-    let mut writer = encoder.write_header().unwrap();
 
     let size = (width * height * 8) as u64;
 
@@ -179,6 +177,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     command_buffer.flush()?;
     command_buffer.wait()?;
 
+    let mut encoder = png::Encoder::new(w, width, height);
+    encoder.set_color(png::ColorType::Rgb);
+    encoder.set_depth(png::BitDepth::Sixteen);
+    let mut writer = encoder.write_header().unwrap();
+
     let mut lock = buffer.write().unwrap();
     let memory = lock.bind_memory(0..size)?;
 
@@ -186,13 +189,24 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     for offset in (0..size).step_by(8) {
         let offset = offset as usize;
-        let cur = &memory[offset..offset + 6];
+        let r: [u8; 2] = memory[offset..offset + 2].try_into().unwrap();
+        let g: [u8; 2] = memory[offset + 2..offset + 4].try_into().unwrap();
+        let b: [u8; 2] = memory[offset + 4..offset + 6].try_into().unwrap();
 
-        for byte in cur.bytes() {
-            data.push(byte.unwrap())
-        }
-        data.push(0xff);
-        data.push(0xff);
+        let r = f16::from_le_bytes(r).clamp(0., 1.) as f32;
+        let g = f16::from_le_bytes(g).clamp(0., 1.) as f32;
+        let b = f16::from_le_bytes(b).clamp(0., 1.) as f32;
+
+        let r = (r * 65535.0) as u16;
+        let g = (g * 65535.0) as u16;
+        let b = (b * 65535.0) as u16;
+
+        data.push(r.to_le_bytes()[0]);
+        data.push(r.to_le_bytes()[1]);
+        data.push(g.to_le_bytes()[0]);
+        data.push(g.to_le_bytes()[1]);
+        data.push(b.to_le_bytes()[0]);
+        data.push(b.to_le_bytes()[1]);
     }
 
     writer.write_image_data(&data).unwrap();
