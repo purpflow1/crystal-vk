@@ -140,10 +140,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         .dispatch([(width + 7) / 8, (height + 7) / 8, 1])
         .build(queue.clone())?;
 
+    print!("Rendering...");
+
     command_buffer.flush()?;
     command_buffer.wait()?;
 
-    println!("Render finished. Saving...");
+    println!("Done!\nSaving...");
 
     let w = BufWriter::new(
         File::options()
