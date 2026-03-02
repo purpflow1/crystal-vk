@@ -65,6 +65,44 @@ impl DescriptorSet {
         Ok(())
     }
 
+    pub fn bind_storage_image(
+        &mut self,
+        image: Arc<Image>,
+        binding: u32,
+        array_offset: u32,
+        array_count: u32,
+    ) -> Result<(), Box<dyn Error>> {
+        let device = image.device.clone();
+
+        let image_infos = [vk::DescriptorImageInfo::default()
+            .image_view(image.image_view)
+            .image_layout(vk::ImageLayout::GENERAL)];
+
+        let typ = if let Some(alloc_info) = self.descriptor_set_layout.alloc_info.get(&binding) {
+            alloc_info.typ
+        } else {
+            return Err(format!("binding not fount: {}", binding).into());
+        };
+
+        let descriptor_write = vk::WriteDescriptorSet::default()
+            .descriptor_type(typ)
+            .dst_set(self.handle)
+            .dst_binding(binding)
+            .dst_array_element(array_offset)
+            .descriptor_count(array_count)
+            .image_info(&image_infos);
+
+        unsafe {
+            device
+                .handle
+                .update_descriptor_sets(&[descriptor_write], &[])
+        };
+
+        self.bindings.insert(binding, image);
+
+        Ok(())
+    }
+
     pub fn bind_buffer(
         &mut self,
         buffer: Arc<RwLock<Buffer<AnyBuffer>>>,

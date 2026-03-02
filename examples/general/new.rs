@@ -164,6 +164,10 @@ impl VulkanContext {
             device.clone(),
             [window.inner_size().width, window.inner_size().height],
             vk::Format::R8G8B8A8_SRGB,
+            vk::ImageUsageFlags::TRANSFER_SRC
+                | vk::ImageUsageFlags::TRANSFER_DST
+                | vk::ImageUsageFlags::SAMPLED
+                | vk::ImageUsageFlags::COLOR_ATTACHMENT,
         )
         .unwrap();
 
@@ -316,6 +320,10 @@ impl VulkanContext {
                     device.clone(),
                     [info.width, info.height],
                     vk::Format::R8G8B8A8_UNORM,
+                    vk::ImageUsageFlags::TRANSFER_SRC
+                        | vk::ImageUsageFlags::TRANSFER_DST
+                        | vk::ImageUsageFlags::SAMPLED
+                        | vk::ImageUsageFlags::COLOR_ATTACHMENT,
                 )
                 .unwrap(),
                 buffer,

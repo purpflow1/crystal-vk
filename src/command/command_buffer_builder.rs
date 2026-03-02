@@ -145,6 +145,31 @@ impl CommandBufferBuilder<Idle> {
 }
 
 impl<State: PipelineBoundState> CommandBufferBuilder<State> {
+    pub fn push_constants(
+        self,
+        stages: vk::ShaderStageFlags,
+        offset: u32,
+        constants: &[u8],
+    ) -> Self {
+        let pipeline: Arc<Pipeline> = self
+            .bindings
+            .iter()
+            .rfind(|item| Arc::clone(item).downcast::<Pipeline>().is_ok())
+            .map(|item| Arc::clone(item).downcast().unwrap())
+            .unwrap();
+
+        let layout = pipeline.pipeline_layout.clone();
+
+        unsafe {
+            self.command_buffer_allocator
+                .device
+                .handle
+                .cmd_push_constants(self.handle, layout.handle, stages, offset, constants)
+        }
+
+        self
+    }
+
     pub fn bind_descriptor_sets(
         mut self,
         first_set: u32,

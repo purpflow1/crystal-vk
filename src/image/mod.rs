@@ -93,6 +93,7 @@ impl Image {
         device: Arc<Device>,
         extent: [u32; 2],
         format: vk::Format,
+        usage: vk::ImageUsageFlags,
     ) -> Result<Arc<Self>, Box<dyn Error>> {
         let format_properties = unsafe {
             device
@@ -121,10 +122,7 @@ impl Image {
             samples: vk::SampleCountFlags::TYPE_1,
             tiling: vk::ImageTiling::OPTIMAL,
             aspect_mask: vk::ImageAspectFlags::COLOR,
-            usage: vk::ImageUsageFlags::TRANSFER_SRC
-                | vk::ImageUsageFlags::TRANSFER_DST
-                | vk::ImageUsageFlags::SAMPLED
-                | vk::ImageUsageFlags::COLOR_ATTACHMENT,
+            usage,
             mem_property: vk::MemoryPropertyFlags::DEVICE_LOCAL,
             array_layers: 1,
             flags: vk::ImageCreateFlags::empty(),
