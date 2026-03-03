@@ -12,6 +12,7 @@
 
 pub mod buffer;
 pub mod command;
+pub mod deferred;
 pub mod device;
 pub mod image;
 pub mod instance;

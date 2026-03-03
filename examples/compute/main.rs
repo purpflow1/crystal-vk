@@ -9,6 +9,7 @@ use std::{
 use crystal_vk::{
     buffer::{Buffer, BufferInfo},
     command::{CommandBufferAllocator, command_buffer_builder::CommandBufferBuilder},
+    deferred::{DeferredOperation, DeferredOperationAllocator},
     device::Device,
     pipeline::{
         Pipeline,
@@ -101,9 +102,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         binary.as_binary().to_vec(),
     )?;
 
-    let pipeline_layout = PipelineLayout::new(descriptor_pool, vec![descriptor_set_layout], &[])?;
+    let deferred_operation_allocator = DeferredOperationAllocator::new(device.clone())?;
+    let op = DeferredOperation::begin(deferred_operation_allocator.clone())?;
 
+    let pipeline_layout = PipelineLayout::new(descriptor_pool, vec![descriptor_set_layout], &[])?;
     let pipeline = Pipeline::new_compute(pipeline_layout.clone(), shader.clone(), None)?;
+
+    op.join()?;
 
     let mut lock = buffer_in.write().unwrap();
     let memory = lock.bind_memory(0..512).unwrap();
