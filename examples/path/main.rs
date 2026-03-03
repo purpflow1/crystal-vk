@@ -141,7 +141,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 samples_per_frame: SAMPLES,
             }),
         )
-        .dispatch([(width + 7) / 8, (height + 7) / 8, 1])
+        .dispatch([(width.div_ceil(8) + 7), (height.div_ceil(8) + 7), 1])
         .build(queue.clone())?;
 
     command_buffer.flush()?;
@@ -153,6 +153,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         File::options()
             .write(true)
             .create(true)
+            .truncate(true)
             .open("examples/path/out.png")?,
     );
 
