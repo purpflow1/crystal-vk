@@ -4,6 +4,8 @@ use std::{
     ffi::CString,
     fs::File,
     io::{BufReader, Read},
+    sync::Mutex,
+    time::SystemTime,
 };
 
 use crystal_vk::{
@@ -25,7 +27,24 @@ use crystal_vk::{
     vk,
 };
 
+static RNG_STATE: Mutex<u64> = Mutex::new(0);
+
+pub fn rand() -> u64 {
+    let mut s = RNG_STATE.lock().unwrap();
+    let mut x = *s;
+    if x == 0 {
+        x = 0xdead_beef_dead_beef;
+    }
+    x ^= x >> 12;
+    x ^= x << 25;
+    x ^= x >> 27;
+    *s = x;
+    x.wrapping_mul(0x2545_F491_4F6C_DD1Du64)
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
+    *RNG_STATE.lock().unwrap() = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_secs();
+
     let instance = crystal_vk::instance::Instance::new()?;
     let physical_device = instance.enumerate_physical_devices(None)?[0].clone();
     let (device, queues) = Device::new(
@@ -37,7 +56,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let buffer_in = Buffer::new(
         device.clone(),
         BufferInfo {
-            size: 512,
+            size: 1024,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
             usage: vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
             properties: vk::MemoryPropertyFlags::HOST_VISIBLE
@@ -48,7 +67,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let buffer_out = Buffer::new(
         device.clone(),
         BufferInfo {
-            size: 512,
+            size: 1024,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
             usage: vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
             properties: vk::MemoryPropertyFlags::HOST_VISIBLE
@@ -82,7 +101,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let descriptor_set =
         DescriptorSet::new(descriptor_pool.clone(), descriptor_set_layout.clone(), 1)?[0].clone();
 
-    let mut reader = BufReader::new(File::open("examples/shaders/plain.comp")?);
+    let mut reader = BufReader::new(File::open("examples/shaders/biquad.comp")?);
     let mut source = String::new();
     reader.read_to_string(&mut source).unwrap();
 
@@ -90,7 +109,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let binary = compiler.compile_into_spirv(
         &source,
         shaderc::ShaderKind::Compute,
-        "particles.comp",
+        "biquad.comp",
         "main",
         None,
     )?;
@@ -110,10 +129,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     op.join()?;
 
-    let mut lock = buffer_in.write().unwrap();
-    let memory = lock.bind_memory(0..512).unwrap();
-    memory.fill(0);
-    drop(lock);
+    {
+        let mut lock = buffer_in.write().unwrap();
+        let memory = lock.bind_memory(0..1024).unwrap();
+        let memory: &mut [u32] = bytemuck::cast_slice_mut(memory);
+        for word in memory {
+            *word = rand() as u32;
+        }
+    }
 
     let (queue_info, queue) = queues
         .iter()
@@ -139,7 +162,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let command_buffer_builder = command_buffer_builder
         .bind_pipeline(pipeline)
         .bind_descriptor_sets(0, vec![descriptor_set.clone()])
-        .dispatch([1, 1, 1]);
+        .dispatch([2, 1, 1]);
 
     let mut future = command_buffer_builder.build(queue)?;
     future.flush().unwrap();

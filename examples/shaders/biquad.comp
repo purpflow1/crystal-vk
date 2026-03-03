@@ -1,0 +1,63 @@
+#version 460
+
+layout(binding = 0) readonly buffer DataSSBOIn {
+    uint data[];
+} buffer_in;
+
+layout(binding = 1) buffer DataSSBOOut {
+    uint data[];
+} buffer_out;
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+const float b0 = 0.0675;
+const float b1 = 0.1349;
+const float b2 = 0.0675;
+const float a1 = 1.1429;
+const float a2 = -0.4127;
+
+shared float shared_in[gl_WorkGroupSize.x];
+shared float shared_out[gl_WorkGroupSize.x];
+
+void main()
+{
+    uint gid = gl_GlobalInvocationID.x;
+    uint lid = gl_LocalInvocationIndex;
+    uint group_size = gl_WorkGroupSize.x;
+    uint group_start = gl_WorkGroupID.x * group_size;
+
+    // Load input sample (convert uint bits to float)
+    // Guard against buffer overrun (assumes buffer size is multiple of group size)
+    if (gid < buffer_in.data.length())
+        shared_in[lid] = uintBitsToFloat(buffer_in.data[gid]);
+    else
+        shared_in[lid] = 0.0;
+
+    barrier();
+
+    for (uint i = 0; i < group_size; ++i) {
+        if (lid == i) {
+            uint global_idx = group_start + i;
+
+            // Fetch current input
+            float x_n = shared_in[i];
+
+            // Fetch previous two inputs from shared memory
+            float x_n1 = (i >= 1) ? shared_in[i - 1] : 0.0;
+            float x_n2 = (i >= 2) ? shared_in[i - 2] : 0.0;
+
+            // Fetch previous two outputs from shared memory
+            float y_n1 = (i >= 1) ? shared_out[i - 1] : 0.0;
+            float y_n2 = (i >= 2) ? shared_out[i - 2] : 0.0;
+
+            // Biquad difference equation
+            float y_n = b0 * x_n + b1 * x_n1 + b2 * x_n2 - a1 * y_n1 - a2 * y_n2;
+
+            shared_out[i] = y_n;
+
+            if (global_idx < buffer_out.data.length())
+                buffer_out.data[global_idx] = floatBitsToUint(y_n);
+        }
+        barrier();
+    }
+}
