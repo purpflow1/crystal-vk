@@ -41,10 +41,6 @@ impl BuilderState for InRenderPassWithPipeline {}
 impl PipelineBoundState for InRenderPassWithPipeline {}
 impl RenderPassBound for InRenderPassWithPipeline {}
 
-pub struct ImageStaged;
-impl BuilderState for ImageStaged {}
-impl Buildable for ImageStaged {}
-
 pub struct CommandBufferBuilder<State: BuilderState = Idle> {
     pub(crate) handle: vk::CommandBuffer,
     pub(crate) command_buffer_allocator: Arc<CommandBufferAllocator>,
@@ -391,7 +387,7 @@ impl CommandBufferBuilder<InRenderPassWithPipeline> {
     }
 }
 
-impl CommandBufferBuilder<ImageStaged> {
+impl CommandBufferBuilder {
     pub fn generate_mipmaps(mut self, image: Arc<Image>) -> CommandBufferBuilder<Idle> {
         self.bindings.push_back(image.clone());
         let mut barrier = vk::ImageMemoryBarrier::default()
@@ -540,9 +536,6 @@ impl CommandBufferBuilder<ImageStaged> {
             _state: PhantomData,
         }
     }
-}
-
-impl CommandBufferBuilder {
     pub fn transition_image_layout(
         mut self,
         image: Arc<Image>,
@@ -611,7 +604,7 @@ impl CommandBufferBuilder {
         mut self,
         buffer: Arc<RwLock<Buffer<AnyBuffer>>>,
         image: Arc<Image>,
-    ) -> CommandBufferBuilder<ImageStaged> {
+    ) -> Self {
         self = self.transition_image_layout(image.clone(), vk::ImageLayout::TRANSFER_SRC_OPTIMAL);
         self.bindings.push_back(image.clone());
         self.bindings.push_back(buffer.clone());
@@ -658,7 +651,7 @@ impl CommandBufferBuilder {
         mut self,
         image: Arc<Image>,
         buffer: Arc<RwLock<Buffer<AnyBuffer>>>,
-    ) -> CommandBufferBuilder<ImageStaged> {
+    ) -> Self {
         self = self.transition_image_layout(image.clone(), vk::ImageLayout::TRANSFER_DST_OPTIMAL);
         self.bindings.push_back(image.clone());
         self.bindings.push_back(buffer.clone());
