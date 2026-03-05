@@ -7,7 +7,7 @@ use crate::device::Device;
 
 pub struct DeferredOperation {
     allocator: Arc<DeferredOperationAllocator>,
-    operation: vk::DeferredOperationKHR,
+    pub(crate) operation: vk::DeferredOperationKHR,
 }
 
 impl Drop for DeferredOperation {

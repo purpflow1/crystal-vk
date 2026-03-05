@@ -2,7 +2,10 @@ use std::{error::Error, sync::Arc};
 
 use ash::vk;
 
-use crate::pipeline::{Pipeline, PipelineInfo, descriptor::layout::PipelineLayout, shader::Shader};
+use crate::{
+    deferred::DeferredOperation,
+    pipeline::{Pipeline, PipelineInfo, descriptor::layout::PipelineLayout, shader::Shader},
+};
 
 impl Pipeline {
     /// Creates a ray‑tracing pipeline with automatic shader‑group configuration.
@@ -18,6 +21,7 @@ impl Pipeline {
         pipeline_layout: Arc<PipelineLayout>,
         shaders: Vec<Arc<Shader>>,
         cache: Option<&[u8]>,
+        deferred: Option<DeferredOperation>,
     ) -> Result<Arc<Pipeline>, Box<dyn Error>> {
         if shaders.is_empty() {
             return Err("no shaders specified".into());
@@ -148,14 +152,15 @@ impl Pipeline {
             &pipeline_layout.device.handle,
         );
 
+        let deferred = if let Some(deferred) = deferred {
+            deferred.operation
+        } else {
+            vk::DeferredOperationKHR::null()
+        };
+
         let pipeline = unsafe {
             rt_loader
-                .create_ray_tracing_pipelines(
-                    vk::DeferredOperationKHR::null(),
-                    pipeline_cache,
-                    &[create_info],
-                    None,
-                )
+                .create_ray_tracing_pipelines(deferred, pipeline_cache, &[create_info], None)
                 .map_err(|(_, err)| err)?[0]
         };
 
