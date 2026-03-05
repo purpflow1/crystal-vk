@@ -9,6 +9,7 @@ use std::{
 use ash::vk;
 
 use crate::{
+    acceleration::AccelerationStructure,
     buffer::{AnyBuffer, Buffer, InderectBuffer, IndexBuffer, VertexBuffer},
     command::CommandBufferAllocator,
     device::queue::Queue,
@@ -388,6 +389,20 @@ impl CommandBufferBuilder<InRenderPassWithPipeline> {
 }
 
 impl CommandBufferBuilder {
+    pub fn build_acceleration_structure(
+        self,
+        accel: Arc<Mutex<AccelerationStructure>>,
+    ) -> Result<CommandBufferBuilder<Idle>, Box<dyn Error>> {
+        let mut lock = accel.lock().unwrap();
+        lock.build(self.handle)?;
+
+        Ok(CommandBufferBuilder {
+            handle: self.handle,
+            command_buffer_allocator: self.command_buffer_allocator,
+            bindings: self.bindings,
+            _state: PhantomData,
+        })
+    }
     pub fn generate_mipmaps(mut self, image: Arc<Image>) -> CommandBufferBuilder<Idle> {
         self.bindings.push_back(image.clone());
         let mut barrier = vk::ImageMemoryBarrier::default()

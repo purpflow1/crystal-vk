@@ -148,10 +148,17 @@ impl DescriptorSet {
 
     pub fn bind_acceleration_structure(
         &mut self,
-        acceleration_structure: Arc<AccelerationStructure>,
+        acceleration_structure: Arc<Mutex<AccelerationStructure>>,
         binding: u32,
     ) -> Result<(), Box<dyn Error>> {
-        let device = acceleration_structure.device.clone();
+        let lock = acceleration_structure.lock().unwrap();
+        if lock._buffer.is_none() {
+            return Err("build acceleration structure first!".into());
+        }
+        self.bindings
+            .insert(binding, acceleration_structure.clone());
+
+        let device = lock.device.clone();
 
         let typ = if let Some(alloc_info) = self.descriptor_set_layout.alloc_info.get(&binding) {
             alloc_info.typ
@@ -159,7 +166,7 @@ impl DescriptorSet {
             return Err(format!("binding not fount: {}", binding).into());
         };
 
-        let structures = &[acceleration_structure.blas];
+        let structures = &[lock.blas];
 
         let mut acc_info = vk::WriteDescriptorSetAccelerationStructureKHR::default()
             .acceleration_structures(structures);

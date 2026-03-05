@@ -17,7 +17,7 @@ pub struct Device {
     pub(crate) handle: ash::Device,
     pub(crate) instance: Arc<instance::Instance>,
     pub(crate) physical_device: Arc<physical_device::PhysicalDevice>,
-    pub(crate) extensions: Vec<String>,
+    pub extensions: Vec<String>,
     pub(crate) surface: Option<Arc<surface::Surface>>,
 }
 

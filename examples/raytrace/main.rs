@@ -8,6 +8,7 @@ use std::{
 
 use ash::vk;
 use crystal_vk::{
+    acceleration::{AccelerationStructure, GeometryTriangles},
     buffer::{AnyBuffer, BufferInfo},
     command::{CommandBufferAllocator, command_buffer_builder::CommandBufferBuilder},
     pipeline::{
@@ -32,10 +33,46 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let instance = crystal_vk::instance::Instance::new()?;
     let physical_device = instance.enumerate_physical_devices(None)?[0].clone();
+
     let (device, queues) = crystal_vk::device::Device::new(
         physical_device,
         vk::PhysicalDeviceFeatures::default(),
-        vec![vk::KHR_DEFERRED_HOST_OPERATIONS_NAME],
+        vec![
+            vk::KHR_DEFERRED_HOST_OPERATIONS_NAME,
+            vk::KHR_ACCELERATION_STRUCTURE_NAME,
+            vk::KHR_RAY_TRACING_PIPELINE_NAME,
+        ],
+    )?;
+
+    if !device.extensions.contains(
+        &vk::KHR_ACCELERATION_STRUCTURE_NAME
+            .to_str()
+            .unwrap()
+            .to_string(),
+    ) {
+        return Err("Device does not support acceleration structure!".into());
+    }
+
+    if !device.extensions.contains(
+        &vk::KHR_RAY_TRACING_PIPELINE_NAME
+            .to_str()
+            .unwrap()
+            .to_string(),
+    ) {
+        return Err("Device does not support ray tracing pipeline!".into());
+    }
+
+    let acceleration_structure = AccelerationStructure::new_triangles(
+        device.clone(),
+        vec![GeometryTriangles {
+            vertex_buffer: todo!(),
+            vertex_stride: todo!(),
+            vertex_format: todo!(),
+            vertex_max: todo!(),
+            index_type: todo!(),
+            index_buffer: todo!(),
+            index_count: todo!(),
+        }],
     )?;
 
     let queue = queues.first_key_value().unwrap().1[0].clone();
@@ -51,6 +88,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut command_buffer = CommandBufferBuilder::new(allocator.clone(), 0)?
         .transition_image_layout(image.clone(), vk::ImageLayout::GENERAL)
+        .build_acceleration_structure(acceleration_structure)
+        .unwrap()
         .build(queue.clone())?;
 
     command_buffer.flush()?;
