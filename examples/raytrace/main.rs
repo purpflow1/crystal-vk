@@ -79,6 +79,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let allocator = CommandBufferAllocator::new(queues.clone())?;
 
+    drop(acceleration_structure);
+
     let image = crystal_vk::image::Image::new(
         device.clone(),
         [width, height],
