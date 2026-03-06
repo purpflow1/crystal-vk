@@ -27,6 +27,7 @@ use crystal_vk::{
         shader::Shader,
     },
 };
+use half::f16;
 
 const SAMPLES: i32 = 1024;
 const FRAMES: u32 = 128;
@@ -162,7 +163,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let image = image::Image::new(
         device.clone(),
         [width, height],
-        vk::Format::R32G32B32A32_SFLOAT,
+        vk::Format::R16G16B16A16_SFLOAT,
         vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::TRANSFER_SRC,
     )?;
 
@@ -406,7 +407,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .open("examples/raytrace/out.png")?,
     );
 
-    let size = (width * height * 16) as u64; // R32G32B32A32_SFLOAT
+    let size = (width * height * 8) as u64; // R16G16B16A16_SFLOAT
     let buffer = crystal_vk::buffer::Buffer::<AnyBuffer>::new(
         device.clone(),
         BufferInfo {
@@ -436,15 +437,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mem = lock.bind_memory(0..size)?;
     let mut data = Vec::with_capacity((width * height * 3 * 2) as usize);
 
-    for offset in (0..size).step_by(16) {
+    for offset in (0..size).step_by(8) {
         let offset = offset as usize;
-        let r: [u8; 4] = mem[offset..offset + 4].try_into().unwrap();
-        let g: [u8; 4] = mem[offset + 4..offset + 8].try_into().unwrap();
-        let b: [u8; 4] = mem[offset + 8..offset + 12].try_into().unwrap();
+        // Each component is stored as a 16‑bit half‑float (little‑endian)
+        let r16 = u16::from_le_bytes(mem[offset..offset + 2].try_into().unwrap());
+        let g16 = u16::from_le_bytes(mem[offset + 2..offset + 4].try_into().unwrap());
+        let b16 = u16::from_le_bytes(mem[offset + 4..offset + 6].try_into().unwrap());
+        // Alpha is ignored (mem[offset + 6..offset + 8])
 
-        let rf = f32::from_le_bytes(r).clamp(0.0, 1.0);
-        let gf = f32::from_le_bytes(g).clamp(0.0, 1.0);
-        let bf = f32::from_le_bytes(b).clamp(0.0, 1.0);
+        let rf = f16::from_bits(r16).to_f32().clamp(0.0, 1.0);
+        let gf = f16::from_bits(g16).to_f32().clamp(0.0, 1.0);
+        let bf = f16::from_bits(b16).to_f32().clamp(0.0, 1.0);
 
         data.extend_from_slice(&((rf * 65535.0) as u16).to_le_bytes());
         data.extend_from_slice(&((gf * 65535.0) as u16).to_le_bytes());
