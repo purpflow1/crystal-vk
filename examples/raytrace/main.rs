@@ -452,6 +452,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     writer.write_image_data(&data).unwrap();
+    writer.finish()?;
+
     println!("Finished!");
     Ok(())
 }
