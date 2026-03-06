@@ -248,9 +248,6 @@ impl CommandBufferBuilder<PipelineBound> {
     }
 
     /// Dispatch a ray‑tracing workload using the Vulkan ray‑tracing extension.
-    /// Currently this uses empty shader‑binding‑table regions. Users can
-    /// extend the method to provide actual `StridedDeviceAddressRegionKHR`
-    /// structures as needed.
     pub fn trace_rays(
         self,
         raygen_region: &vk::StridedDeviceAddressRegionKHR,

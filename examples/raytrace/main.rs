@@ -1,4 +1,3 @@
-// examples/raytrace/main.rs
 use std::{
     error::Error,
     ffi::CString,
@@ -55,7 +54,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     // -------------------------------------------------
-    // Проверка наличия нужных расширений
+    // Extension check
     // -------------------------------------------------
     if !device.extensions.contains(
         &vk::KHR_ACCELERATION_STRUCTURE_NAME
@@ -75,9 +74,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // -------------------------------------------------
-    // Создание геометрии (один треугольник)
+    // Geometry (vertex)
     // -------------------------------------------------
-    // Вершины: позиция + цвет (RGB)
     let vertices: Vec<f32> = vec![
         // Pos           // Color
         0.0, -0.5, 0.0, 1.0, 0.0, 0.0, // V0 – красный
@@ -137,13 +135,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // -------------------------------------------------------------------------
-    // BLAS – ускорительная структура
+    // BLAS – acceleration structure
     // -------------------------------------------------------------------------
     let acceleration_structure = AccelerationStructure::new_triangles(
         device.clone(),
         vec![GeometryTriangles {
             vertex_buffer: vertex_buffer.clone(),
-            vertex_stride: (6 * size_of::<f32>()) as u64, // 3 позиционных + 3 цветовых компоненты
+            vertex_stride: (6 * size_of::<f32>()) as u64, // 3 pos + 3 color
             vertex_format: vk::Format::R32G32B32_SFLOAT,
             vertex_max: 3,
             index_type: vk::IndexType::UINT32,
@@ -153,13 +151,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     // -------------------------------------------------------------------------
-    // Очередь и аллокатор команд
+    // Queue and command allocator
     // -------------------------------------------------------------------------
     let queue = queues.first_key_value().unwrap().1[0].clone();
     let allocator = CommandBufferAllocator::new(queues.clone())?;
 
     // -------------------------------------------------------------------------
-    // Выходное изображение (storage image)
+    // Storage image
     // -------------------------------------------------------------------------
     let image = image::Image::new(
         device.clone(),
@@ -169,7 +167,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     // -------------------------------------------------------------------------
-    // Дескриптор‑пул и набор
+    // Descriptor pool and set
     // -------------------------------------------------------------------------
     let descriptor_pool = DescriptorPool::new(
         device.clone(),
@@ -178,7 +176,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .descriptor_count(1)],
     )?;
 
-    // layout for storage image + TLAS (TLAS пока не используется)
+    // layout for storage image + TLAS
     let descriptor_set_layout = DescriptorSetLayout::new(
         device.clone(),
         vec![
@@ -214,9 +212,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // -------------------------------------------------------------------------
-    // Компиляция ray‑tracing шейдеров
+    // Compiling ray‑tracing shaders
     // -------------------------------------------------------------------------
-    // Путь к файлам шейдеров (в примере они лежат в examples/shaders/)
     fn compile_shader(
         device: Arc<Device>,
         path: &str,
@@ -237,7 +234,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 shaderc::ShaderKind::RayGeneration => vk::ShaderStageFlags::RAYGEN_KHR,
                 shaderc::ShaderKind::Miss => vk::ShaderStageFlags::MISS_KHR,
                 shaderc::ShaderKind::ClosestHit => vk::ShaderStageFlags::CLOSEST_HIT_KHR,
-                _ => vk::ShaderStageFlags::RAYGEN_KHR, // fallback – не используется
+                _ => vk::ShaderStageFlags::RAYGEN_KHR, // fallback – not used
             },
             binary.as_binary().to_vec(),
         )?)
@@ -286,7 +283,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     // -------------------------------------------------------------------------
-    // Создание ray‑tracing pipeline
+    // Ray‑tracing pipeline
     // -------------------------------------------------------------------------
     let rt_pipeline = Pipeline::new_raytrace(
         pipeline_layout.clone(),
@@ -296,21 +293,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     // -------------------------------------------------------------------------
-    // Подготовка Shader Binding Table (SBT)
+    // Shader Binding Table (SBT)
     // -------------------------------------------------------------------------
 
     let handle_size = rt_props.shader_group_handle_size as usize;
     let handle_alignment = rt_props.shader_group_handle_alignment as usize;
     let group_count = 3; // 3 шейдера
 
-    // Выравнивание до `handle_alignment`
+    // Alignment
     let aligned_handle_size =
         ((handle_size + handle_alignment - 1) / handle_alignment) * handle_alignment;
 
-    // Размер буфера SBT = количество групп * выровненный размер хэндла
     let sbt_size = (aligned_handle_size * group_count) as vk::DeviceSize;
 
-    // Буфер SBT (GPU‑адрес, нужен флаг SHADER_DEVICE_ADDRESS)
+    // SBT Buffer
     let sbt_buffer = Buffer::<AnyBuffer>::new(
         device.clone(),
         BufferInfo {
@@ -322,16 +318,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     )?;
 
-    // Заполняем буфер дескрипторами групп
+    // Descriptors and groups
     {
-        // Получаем хэндлы всех групп сразу
+        // Get all the handles
         let shader_handles = rt_pipeline.get_raytrace_shader_groups(
             0,
             group_count as u32,
             handle_size * group_count,
         )?;
 
-        // Копируем в наш буфер, учитывая выравнивание
+        // Copy to buffer
         let mut lock = sbt_buffer.write().unwrap();
         let ptr = lock.bind_memory(0..sbt_size)?;
         for (i, chunk) in shader_handles.chunks(handle_size).enumerate() {
@@ -348,7 +344,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let lock = sbt_buffer.read().unwrap();
 
-    // Формируем регионы
+    // Regions
     let raygen_region =
         lock.get_strided_device_addr_region(0, handle_size as u64, aligned_handle_size as u64);
     let miss_region = lock.get_strided_device_addr_region(
@@ -364,16 +360,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     drop(lock);
 
-    // У нас нет callable‑шэйдеров
     let callable_region = vk::StridedDeviceAddressRegionKHR::default();
 
     // -------------------------------------------------------------------------
-    // Запуск ray‑tracing
+    // Rendering
     // -------------------------------------------------------------------------
     println!("Rendering…");
 
-    // Сначала собираем командный буфер, но **не вызываем .build()**,
-    // чтобы иметь доступ к внутреннему vk::CommandBuffer (`handle`).
     let builder = CommandBufferBuilder::new(allocator.clone(), 0)?
         .transition_image_layout(image.clone(), vk::ImageLayout::GENERAL)
         .bind_pipeline(rt_pipeline.clone())
@@ -396,14 +389,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             [width.div_ceil(8) as u32, height.div_ceil(8) as u32, 1],
         );
 
-    // Теперь завершаем запись командного буфера
     let mut cmd = builder.build(queue.clone())?;
 
     cmd.flush()?;
     cmd.wait()?;
 
     // -------------------------------------------------------------------------
-    // Сохранение изображения
+    // Saving
     // -------------------------------------------------------------------------
     println!("Saving image…");
     let w = BufWriter::new(
