@@ -165,7 +165,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         [width, height],
         vk::Format::R16G16B16A16_SFLOAT,
         vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::TRANSFER_SRC,
-    )?;
+    )
+    .unwrap();
 
     // -------------------------------------------------------------------------
     // Descriptor pool and set
