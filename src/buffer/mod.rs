@@ -109,4 +109,23 @@ impl<Usage: BufferUsage> Buffer<Usage> {
 
         Ok(slice)
     }
+
+    pub fn get_strided_device_addr_region(
+        &self,
+        offset: u64,
+        size: u64,
+        stride: u64,
+    ) -> vk::StridedDeviceAddressRegionKHR {
+        let addr = unsafe { self.get_buffer_device_address() };
+
+        vk::StridedDeviceAddressRegionKHR::default()
+            .device_address(addr + offset)
+            .size(size)
+            .stride(stride)
+    }
+
+    unsafe fn get_buffer_device_address(&self) -> u64 {
+        let address_info = vk::BufferDeviceAddressInfo::default().buffer(self.handle);
+        unsafe { self.device.handle.get_buffer_device_address(&address_info) }
+    }
 }

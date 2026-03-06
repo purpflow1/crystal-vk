@@ -1,0 +1,42 @@
+
+    / examples / shaders / raytrace . rgen #L1-70
+#version 460 core
+#extension GL_EXT_ray_tracing : require
+
+layout(set = 0, binding = 0, rgba32f) uniform image2D img;
+layout(set = 0, binding = 1) uniform accelerationStructureEXT topAS;
+
+layout(push_constant) uniform PushConsts {
+    vec3 view_origin;
+    vec3 view_dir;
+    float fov;
+} pc;
+
+layout(location = 0) rayPayloadEXT vec3 payload;
+
+void main() {
+    const vec2 pixel_center = vec2(gl_LaunchIDKHR.xy) + vec2(0.5);
+    const vec2 resolution = vec2(gl_LaunchSizeEXT.xy);
+    vec2 ndc = (pixel_center / resolution) * 2.0 - 1.0;
+    ndc.y = -ndc.y; // flip Y
+
+    float aspect = resolution.x / resolution.y;
+    float tan_fov = tan(pc.fov * 0.5);
+    vec3 ray_dir = normalize(pc.view_dir +
+                ndc.x * aspect * tan_fov * vec3(1, 0, 0) +
+                ndc.y * tan_fov * vec3(0, 1, 0));
+
+    traceRayEXT(
+        topAS,
+        gl_RayFlagsOpaqueEXT,
+        0xFF,
+        0, 0, 0,
+        pc.view_origin,
+        0.0,
+        ray_dir,
+        1e30,
+        payload
+    );
+
+    imageStore(img, ivec2(gl_LaunchIDKHR.xy), vec4(payload, 1.0));
+}

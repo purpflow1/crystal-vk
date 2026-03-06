@@ -6,6 +6,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
+use ash::khr::ray_tracing_pipeline::Device as RtDevice;
 use ash::vk;
 
 use crate::{
@@ -237,6 +238,39 @@ impl CommandBufferBuilder<PipelineBound> {
         unsafe {
             self.command_buffer_allocator.device.handle.cmd_dispatch(
                 self.handle,
+                group_count[0],
+                group_count[1],
+                group_count[2],
+            );
+        }
+
+        self
+    }
+
+    /// Dispatch a ray‑tracing workload using the Vulkan ray‑tracing extension.
+    /// Currently this uses empty shader‑binding‑table regions. Users can
+    /// extend the method to provide actual `StridedDeviceAddressRegionKHR`
+    /// structures as needed.
+    pub fn trace_rays(
+        self,
+        raygen_region: &vk::StridedDeviceAddressRegionKHR,
+        miss_region: &vk::StridedDeviceAddressRegionKHR,
+        hit_region: &vk::StridedDeviceAddressRegionKHR,
+        callable_region: &vk::StridedDeviceAddressRegionKHR,
+        group_count: [u32; 3],
+    ) -> Self {
+        let rt_loader = RtDevice::new(
+            &self.command_buffer_allocator.device.instance.handle,
+            &self.command_buffer_allocator.device.handle,
+        );
+
+        unsafe {
+            rt_loader.cmd_trace_rays(
+                self.handle,
+                raygen_region,    // raygen
+                &miss_region,     // miss
+                &hit_region,      // hit
+                &callable_region, // callable
                 group_count[0],
                 group_count[1],
                 group_count[2],

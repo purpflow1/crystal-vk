@@ -174,4 +174,27 @@ impl Pipeline {
             cache: pipeline_cache,
         }))
     }
+
+    pub fn get_raytrace_shader_groups(
+        &self,
+        first_group: u32,
+        group_count: u32,
+        size: usize,
+    ) -> Result<Vec<u8>, Box<dyn Error>> {
+        let device = self.pipeline_layout.device.clone();
+
+        let rt_device =
+            ash::khr::ray_tracing_pipeline::Device::new(&device.instance.handle, &device.handle);
+
+        let handles = unsafe {
+            rt_device.get_ray_tracing_shader_group_handles(
+                self.handle,
+                first_group,
+                group_count,
+                size,
+            )?
+        };
+
+        Ok(handles)
+    }
 }

@@ -14,6 +14,7 @@ pub struct SwapChainSupportDetails {
 pub struct PhysicalDeviceInfo {
     pub name: String,
     pub properties: vk::PhysicalDeviceProperties,
+    pub rt_props: vk::PhysicalDeviceRayTracingPipelinePropertiesKHR<'static>,
     pub features: vk::PhysicalDeviceFeatures,
     pub memory_properties: vk::PhysicalDeviceMemoryProperties,
     pub queue_family_properties: Vec<vk::QueueFamilyProperties>,
@@ -94,6 +95,8 @@ impl PhysicalDevice {
 
         for &device_handle in &physical_devices {
             // Gather basic device properties
+            let mut rt_props = vk::PhysicalDeviceRayTracingPipelinePropertiesKHR::default();
+            let mut properties2 = vk::PhysicalDeviceProperties2::default().push_next(&mut rt_props);
             let (properties, features, memory_properties, queue_family_properties) = unsafe {
                 let features = instance.handle.get_physical_device_features(device_handle);
                 let properties = instance
@@ -105,6 +108,10 @@ impl PhysicalDevice {
                 let queue_family_properties = instance
                     .handle
                     .get_physical_device_queue_family_properties(device_handle);
+
+                instance
+                    .handle
+                    .get_physical_device_properties2(device_handle, &mut properties2);
                 (
                     properties,
                     features,
@@ -137,6 +144,7 @@ impl PhysicalDevice {
             let info = PhysicalDeviceInfo {
                 name: device_name,
                 properties,
+                rt_props,
                 features,
                 memory_properties,
                 queue_family_properties,

@@ -1,16 +1,21 @@
+// examples/raytrace/main.rs
 use std::{
     error::Error,
     ffi::CString,
     fs::File,
     io::{BufReader, BufWriter, Read},
+    mem::size_of,
+    sync::Arc,
     time::SystemTime,
 };
 
 use ash::vk;
 use crystal_vk::{
     acceleration::{AccelerationStructure, GeometryTriangles},
-    buffer::{AnyBuffer, BufferInfo},
+    buffer::{AnyBuffer, Buffer, BufferInfo, IndexBuffer, VertexBuffer},
     command::{CommandBufferAllocator, command_buffer_builder::CommandBufferBuilder},
+    device::Device,
+    image,
     pipeline::{
         Pipeline,
         descriptor::{
@@ -28,11 +33,16 @@ const SAMPLES: i32 = 1024;
 const FRAMES: u32 = 128;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let width = 3000;
-    let height = 3000;
+    let width = 800;
+    let height = 600;
 
+    // -------------------------------------------------
+    // Vulkan instance / device
+    // -------------------------------------------------
     let instance = crystal_vk::instance::Instance::new()?;
     let physical_device = instance.enumerate_physical_devices(None)?[0].clone();
+
+    let rt_props = physical_device.info.rt_props;
 
     let (device, queues) = crystal_vk::device::Device::new(
         physical_device,
@@ -44,6 +54,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         ],
     )?;
 
+    // -------------------------------------------------
+    // Проверка наличия нужных расширений
+    // -------------------------------------------------
     if !device.extensions.contains(
         &vk::KHR_ACCELERATION_STRUCTURE_NAME
             .to_str()
@@ -52,7 +65,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     ) {
         return Err("Device does not support acceleration structure!".into());
     }
-
     if !device.extensions.contains(
         &vk::KHR_RAY_TRACING_PIPELINE_NAME
             .to_str()
@@ -62,41 +74,103 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Err("Device does not support ray tracing pipeline!".into());
     }
 
+    // -------------------------------------------------
+    // Создание геометрии (один треугольник)
+    // -------------------------------------------------
+    // Вершины: позиция + цвет (RGB)
+    let vertices: Vec<f32> = vec![
+        // Pos           // Color
+        0.0, -0.5, 0.0, 1.0, 0.0, 0.0, // V0 – красный
+        0.5, 0.5, 0.0, 0.0, 1.0, 0.0, // V1 – зелёный
+        -0.5, 0.5, 0.0, 0.0, 0.0, 1.0, // V2 – синий
+    ];
+    let indices: Vec<u32> = vec![0, 1, 2];
+
+    // --- vertex buffer ---------------------------------------------------------
+    let vertex_buffer = Buffer::<VertexBuffer>::new(
+        device.clone(),
+        BufferInfo {
+            size: (vertices.len() * size_of::<f32>()) as u64,
+            sharing_mode: vk::SharingMode::EXCLUSIVE,
+            usage: vk::BufferUsageFlags::VERTEX_BUFFER
+                | vk::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR,
+            properties: vk::MemoryPropertyFlags::HOST_VISIBLE
+                | vk::MemoryPropertyFlags::HOST_COHERENT,
+        },
+    )?;
+    {
+        let mut lock = vertex_buffer.write().unwrap();
+        let size = lock.info.size;
+        let mem = lock.bind_memory(0..size)?;
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                vertices.as_ptr() as *const u8,
+                mem.as_mut_ptr(),
+                size as usize,
+            );
+        }
+    }
+
+    // --- index buffer ---------------------------------------------------------
+    let index_buffer = Buffer::<IndexBuffer>::new(
+        device.clone(),
+        BufferInfo {
+            size: (indices.len() * size_of::<u32>()) as u64,
+            sharing_mode: vk::SharingMode::EXCLUSIVE,
+            usage: vk::BufferUsageFlags::INDEX_BUFFER
+                | vk::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR,
+            properties: vk::MemoryPropertyFlags::HOST_VISIBLE
+                | vk::MemoryPropertyFlags::HOST_COHERENT,
+        },
+    )?;
+    {
+        let mut lock = index_buffer.write().unwrap();
+        let size = lock.info.size;
+        let mem = lock.bind_memory(0..size)?;
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                indices.as_ptr() as *const u8,
+                mem.as_mut_ptr(),
+                size as usize,
+            );
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // BLAS – ускорительная структура
+    // -------------------------------------------------------------------------
     let acceleration_structure = AccelerationStructure::new_triangles(
         device.clone(),
         vec![GeometryTriangles {
-            vertex_buffer: todo!(),
-            vertex_stride: todo!(),
-            vertex_format: todo!(),
-            vertex_max: todo!(),
-            index_type: todo!(),
-            index_buffer: todo!(),
-            index_count: todo!(),
+            vertex_buffer: vertex_buffer.clone(),
+            vertex_stride: (6 * size_of::<f32>()) as u64, // 3 позиционных + 3 цветовых компоненты
+            vertex_format: vk::Format::R32G32B32_SFLOAT,
+            vertex_max: 3,
+            index_type: vk::IndexType::UINT32,
+            index_buffer: index_buffer.clone(),
+            index_count: 3,
         }],
     )?;
 
+    // -------------------------------------------------------------------------
+    // Очередь и аллокатор команд
+    // -------------------------------------------------------------------------
     let queue = queues.first_key_value().unwrap().1[0].clone();
-
     let allocator = CommandBufferAllocator::new(queues.clone())?;
 
-    drop(acceleration_structure);
-
-    let image = crystal_vk::image::Image::new(
+    // -------------------------------------------------------------------------
+    // Выходное изображение (storage image)
+    // -------------------------------------------------------------------------
+    let image = image::Image::new(
         device.clone(),
         [width, height],
         vk::Format::R32G32B32A32_SFLOAT,
         vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::TRANSFER_SRC,
     )?;
 
-    let mut command_buffer = CommandBufferBuilder::new(allocator.clone(), 0)?
-        .transition_image_layout(image.clone(), vk::ImageLayout::GENERAL)
-        .build_acceleration_structure(acceleration_structure)
-        .unwrap()
-        .build(queue.clone())?;
-
-    command_buffer.flush()?;
-    command_buffer.wait()?;
-
+    // -------------------------------------------------------------------------
+    // Дескриптор‑пул и набор
+    // -------------------------------------------------------------------------
     let descriptor_pool = DescriptorPool::new(
         device.clone(),
         &[vk::DescriptorPoolSize::default()
@@ -104,48 +178,93 @@ fn main() -> Result<(), Box<dyn Error>> {
             .descriptor_count(1)],
     )?;
 
+    // layout for storage image + TLAS (TLAS пока не используется)
     let descriptor_set_layout = DescriptorSetLayout::new(
         device.clone(),
-        vec![(
-            0,
-            LayoutAllocInfo {
-                stages: vk::ShaderStageFlags::COMPUTE,
-                typ: vk::DescriptorType::STORAGE_IMAGE,
-                count: 1,
-            },
-        )]
+        vec![
+            // 0 – storage image
+            (
+                0,
+                LayoutAllocInfo {
+                    stages: vk::ShaderStageFlags::RAYGEN_KHR,
+                    typ: vk::DescriptorType::STORAGE_IMAGE,
+                    count: 1,
+                },
+            ),
+            (
+                1,
+                LayoutAllocInfo {
+                    stages: vk::ShaderStageFlags::RAYGEN_KHR,
+                    typ: vk::DescriptorType::ACCELERATION_STRUCTURE_KHR,
+                    count: 1,
+                },
+            ),
+        ]
         .into_iter()
         .collect(),
     )?;
 
     let descriptor_set =
         DescriptorSet::new(descriptor_pool.clone(), descriptor_set_layout.clone(), 1)?[0].clone();
-    descriptor_set
-        .lock()
-        .unwrap()
-        .bind_storage_image(image.clone(), 0, 0, 1)?;
 
-    println!("Shader compiling...");
-    let mut reader = BufReader::new(std::fs::File::open("examples/shaders/path.comp")?);
-    let mut source = String::new();
-    reader.read_to_string(&mut source).unwrap();
+    {
+        let mut lock = descriptor_set.lock().unwrap();
+        lock.bind_storage_image(image.clone(), 0, 0, 1)?;
+        lock.bind_acceleration_structure(acceleration_structure, 1)?;
+    }
 
-    let compiler = shaderc::Compiler::new().unwrap();
-    let binary = compiler.compile_into_spirv(
-        &source,
-        shaderc::ShaderKind::Compute,
-        "particles.comp",
-        "main",
-        None,
-    )?;
+    // -------------------------------------------------------------------------
+    // Компиляция ray‑tracing шейдеров
+    // -------------------------------------------------------------------------
+    // Путь к файлам шейдеров (в примере они лежат в examples/shaders/)
+    fn compile_shader(
+        device: Arc<Device>,
+        path: &str,
+        kind: shaderc::ShaderKind,
+        entry: &str,
+    ) -> Result<Arc<Shader>, Box<dyn Error>> {
+        let mut reader = BufReader::new(File::open(path)?);
+        let mut source = String::new();
+        reader.read_to_string(&mut source)?;
 
-    let shader = Shader::new(
+        let compiler = shaderc::Compiler::new().unwrap();
+        let binary = compiler.compile_into_spirv(&source, kind, path, entry, None)?;
+
+        Ok(Shader::new(
+            device,
+            CString::new(entry)?,
+            match kind {
+                shaderc::ShaderKind::RayGeneration => vk::ShaderStageFlags::RAYGEN_KHR,
+                shaderc::ShaderKind::Miss => vk::ShaderStageFlags::MISS_KHR,
+                shaderc::ShaderKind::ClosestHit => vk::ShaderStageFlags::CLOSEST_HIT_KHR,
+                _ => vk::ShaderStageFlags::RAYGEN_KHR, // fallback – не используется
+            },
+            binary.as_binary().to_vec(),
+        )?)
+    }
+
+    let raygen_shader = compile_shader(
         device.clone(),
-        CString::new("main")?,
-        vk::ShaderStageFlags::COMPUTE,
-        binary.as_binary().to_vec(),
+        "examples/shaders/raygen.rgen",
+        shaderc::ShaderKind::RayGeneration,
+        "main",
+    )?;
+    let miss_shader = compile_shader(
+        device.clone(),
+        "examples/shaders/miss.rmiss",
+        shaderc::ShaderKind::Miss,
+        "main",
+    )?;
+    let hit_shader = compile_shader(
+        device.clone(),
+        "examples/shaders/closesthit.rchit",
+        shaderc::ShaderKind::ClosestHit,
+        "main",
     )?;
 
+    // -------------------------------------------------------------------------
+    // Pipeline layout (push‑constants + descriptor set)
+    // -------------------------------------------------------------------------
     #[repr(C)]
     #[derive(Clone, Copy)]
     struct PushConsts {
@@ -154,54 +273,150 @@ fn main() -> Result<(), Box<dyn Error>> {
         focal_dist: f32,
         samples_per_frame: i32,
     }
-
     unsafe impl bytemuck::Zeroable for PushConsts {}
     unsafe impl bytemuck::Pod for PushConsts {}
 
     let pipeline_layout = PipelineLayout::new(
-        descriptor_pool,
-        vec![descriptor_set_layout],
+        descriptor_pool.clone(),
+        vec![descriptor_set_layout.clone()],
         &[vk::PushConstantRange::default()
-            .size(size_of::<PushConsts>() as u32)
-            .stage_flags(vk::ShaderStageFlags::COMPUTE)],
+            .stage_flags(vk::ShaderStageFlags::RAYGEN_KHR)
+            .offset(0)
+            .size(size_of::<PushConsts>() as u32)],
     )?;
-    let pipeline = Pipeline::new_compute(pipeline_layout, shader, None)?;
 
-    println!("Done!\nRendering...");
+    // -------------------------------------------------------------------------
+    // Создание ray‑tracing pipeline
+    // -------------------------------------------------------------------------
+    let rt_pipeline = Pipeline::new_raytrace(
+        pipeline_layout.clone(),
+        vec![raygen_shader, miss_shader, hit_shader],
+        None,
+        None,
+    )?;
 
-    let mut command_buffer = CommandBufferBuilder::new(allocator.clone(), 0)?
-        .bind_pipeline(pipeline)
-        .bind_descriptor_sets(0, vec![descriptor_set])
+    // -------------------------------------------------------------------------
+    // Подготовка Shader Binding Table (SBT)
+    // -------------------------------------------------------------------------
+
+    let handle_size = rt_props.shader_group_handle_size as usize;
+    let handle_alignment = rt_props.shader_group_handle_alignment as usize;
+    let group_count = 3; // 3 шейдера
+
+    // Выравнивание до `handle_alignment`
+    let aligned_handle_size =
+        ((handle_size + handle_alignment - 1) / handle_alignment) * handle_alignment;
+
+    // Размер буфера SBT = количество групп * выровненный размер хэндла
+    let sbt_size = (aligned_handle_size * group_count) as vk::DeviceSize;
+
+    // Буфер SBT (GPU‑адрес, нужен флаг SHADER_DEVICE_ADDRESS)
+    let sbt_buffer = Buffer::<AnyBuffer>::new(
+        device.clone(),
+        BufferInfo {
+            size: sbt_size,
+            sharing_mode: vk::SharingMode::EXCLUSIVE,
+            usage: vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS | vk::BufferUsageFlags::TRANSFER_SRC,
+            properties: vk::MemoryPropertyFlags::HOST_VISIBLE
+                | vk::MemoryPropertyFlags::HOST_COHERENT,
+        },
+    )?;
+
+    // Заполняем буфер дескрипторами групп
+    {
+        // Получаем хэндлы всех групп сразу
+        let shader_handles = rt_pipeline.get_raytrace_shader_groups(
+            0,
+            group_count as u32,
+            handle_size * group_count,
+        )?;
+
+        // Копируем в наш буфер, учитывая выравнивание
+        let mut lock = sbt_buffer.write().unwrap();
+        let ptr = lock.bind_memory(0..sbt_size)?;
+        for (i, chunk) in shader_handles.chunks(handle_size).enumerate() {
+            let dst_offset = i * aligned_handle_size;
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    chunk.as_ptr(),
+                    ptr.as_mut_ptr().add(dst_offset),
+                    handle_size,
+                );
+            }
+        }
+    }
+
+    let lock = sbt_buffer.read().unwrap();
+
+    // Формируем регионы
+    let raygen_region =
+        lock.get_strided_device_addr_region(0, handle_size as u64, aligned_handle_size as u64);
+    let miss_region = lock.get_strided_device_addr_region(
+        aligned_handle_size as u64,
+        handle_size as u64,
+        aligned_handle_size as u64,
+    );
+    let hit_region = lock.get_strided_device_addr_region(
+        2 * aligned_handle_size as u64,
+        handle_size as u64,
+        aligned_handle_size as u64,
+    );
+
+    drop(lock);
+
+    // У нас нет callable‑шэйдеров
+    let callable_region = vk::StridedDeviceAddressRegionKHR::default();
+
+    // -------------------------------------------------------------------------
+    // Запуск ray‑tracing
+    // -------------------------------------------------------------------------
+    println!("Rendering…");
+
+    // Сначала собираем командный буфер, но **не вызываем .build()**,
+    // чтобы иметь доступ к внутреннему vk::CommandBuffer (`handle`).
+    let builder = CommandBufferBuilder::new(allocator.clone(), 0)?
+        .transition_image_layout(image.clone(), vk::ImageLayout::GENERAL)
+        .bind_pipeline(rt_pipeline.clone())
+        .bind_descriptor_sets(0, vec![descriptor_set.clone()])
         .push_constants(
-            vk::ShaderStageFlags::COMPUTE,
+            vk::ShaderStageFlags::RAYGEN_KHR,
             0,
             bytemuck::bytes_of(&PushConsts {
                 time: SystemTime::UNIX_EPOCH.elapsed().unwrap().as_secs_f32(),
                 frame_num: FRAMES,
-                focal_dist: 1.,
+                focal_dist: 1.0,
                 samples_per_frame: SAMPLES,
             }),
         )
-        .dispatch([(width.div_ceil(8) + 7), (height.div_ceil(8) + 7), 1])
-        .build(queue.clone())?;
+        .trace_rays(
+            &raygen_region,
+            &miss_region,
+            &hit_region,
+            &callable_region,
+            [width.div_ceil(8) as u32, height.div_ceil(8) as u32, 1],
+        );
 
-    command_buffer.flush()?;
-    command_buffer.wait()?;
+    // Теперь завершаем запись командного буфера
+    let mut cmd = builder.build(queue.clone())?;
 
-    println!("Done!\nSaving...");
+    cmd.flush()?;
+    cmd.wait()?;
 
+    // -------------------------------------------------------------------------
+    // Сохранение изображения
+    // -------------------------------------------------------------------------
+    println!("Saving image…");
     let w = BufWriter::new(
         File::options()
             .write(true)
             .create(true)
             .truncate(true)
-            .open("examples/path/out.png")?,
+            .open("examples/raytrace/out.png")?,
     );
 
-    let size = (width * height * 16) as u64;
-
+    let size = (width * height * 16) as u64; // R32G32B32A32_SFLOAT
     let buffer = crystal_vk::buffer::Buffer::<AnyBuffer>::new(
-        device,
+        device.clone(),
         BufferInfo {
             size,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
@@ -210,49 +425,41 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     )?;
 
-    let mut command_buffer = CommandBufferBuilder::new(allocator, 0)?
+    // копируем изображение в буфер
+    let mut copy_cmd = CommandBufferBuilder::new(allocator, 0)?
         .transition_image_layout(image.clone(), vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
-        .copy_image_to_buffer(buffer.clone(), image)
-        .build(queue)?;
+        .copy_image_to_buffer(buffer.clone(), image.clone())
+        .build(queue.clone())?;
 
-    command_buffer.flush()?;
-    command_buffer.wait()?;
+    copy_cmd.flush()?;
+    copy_cmd.wait()?;
 
+    // пишем PNG
     let mut encoder = png::Encoder::new(w, width, height);
     encoder.set_color(png::ColorType::Rgb);
     encoder.set_depth(png::BitDepth::Sixteen);
     let mut writer = encoder.write_header().unwrap();
 
     let mut lock = buffer.write().unwrap();
-    let memory = lock.bind_memory(0..size)?;
-
-    let mut data = Vec::new();
+    let mem = lock.bind_memory(0..size)?;
+    let mut data = Vec::with_capacity((width * height * 3 * 2) as usize);
 
     for offset in (0..size).step_by(16) {
         let offset = offset as usize;
-        let r: [u8; 4] = memory[offset..offset + 4].try_into().unwrap();
-        let g: [u8; 4] = memory[offset + 4..offset + 8].try_into().unwrap();
-        let b: [u8; 4] = memory[offset + 8..offset + 12].try_into().unwrap();
+        let r: [u8; 4] = mem[offset..offset + 4].try_into().unwrap();
+        let g: [u8; 4] = mem[offset + 4..offset + 8].try_into().unwrap();
+        let b: [u8; 4] = mem[offset + 8..offset + 12].try_into().unwrap();
 
-        let r = f32::from_le_bytes(r).clamp(0., 1.);
-        let g = f32::from_le_bytes(g).clamp(0., 1.);
-        let b = f32::from_le_bytes(b).clamp(0., 1.);
+        let rf = f32::from_le_bytes(r).clamp(0.0, 1.0);
+        let gf = f32::from_le_bytes(g).clamp(0.0, 1.0);
+        let bf = f32::from_le_bytes(b).clamp(0.0, 1.0);
 
-        let r = (r * 65535.0) as u16;
-        let g = (g * 65535.0) as u16;
-        let b = (b * 65535.0) as u16;
-
-        data.push(r.to_le_bytes()[0]);
-        data.push(r.to_le_bytes()[1]);
-        data.push(g.to_le_bytes()[0]);
-        data.push(g.to_le_bytes()[1]);
-        data.push(b.to_le_bytes()[0]);
-        data.push(b.to_le_bytes()[1]);
+        data.extend_from_slice(&((rf * 65535.0) as u16).to_le_bytes());
+        data.extend_from_slice(&((gf * 65535.0) as u16).to_le_bytes());
+        data.extend_from_slice(&((bf * 65535.0) as u16).to_le_bytes());
     }
 
     writer.write_image_data(&data).unwrap();
-
-    println!("Done!");
-
+    println!("Finished!");
     Ok(())
 }
