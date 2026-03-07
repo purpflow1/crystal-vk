@@ -152,7 +152,7 @@ impl DescriptorSet {
         binding: u32,
     ) -> Result<(), Box<dyn Error>> {
         let lock = acceleration_structure.lock().unwrap();
-        if lock._buffer.is_none() {
+        if lock.blas_buffer.is_none() {
             return Err("build acceleration structure first!".into());
         }
         self.bindings

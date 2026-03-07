@@ -48,7 +48,8 @@ pub struct AccelerationStructure {
     handle: ash::khr::acceleration_structure::Device,
     geometries: Vec<GeometryTriangles>,
     pub(crate) blas: vk::AccelerationStructureKHR,
-    pub(crate) _buffer: Option<Arc<RwLock<Buffer<AnyBuffer>>>>,
+    pub(crate) blas_buffer: Option<Arc<RwLock<Buffer<AnyBuffer>>>>,
+    pub(crate) scratch_buffer: Option<Arc<RwLock<Buffer<AnyBuffer>>>>,
     pub(crate) device: Arc<Device>,
 }
 
@@ -78,7 +79,8 @@ impl AccelerationStructure {
             handle: handle,
             geometries,
             blas: vk::AccelerationStructureKHR::null(),
-            _buffer: None,
+            blas_buffer: None,
+            scratch_buffer: None,
             device,
         })))
     }
@@ -124,6 +126,9 @@ impl AccelerationStructure {
                 properties: vk::MemoryPropertyFlags::DEVICE_LOCAL,
             },
         )?;
+
+        self.blas_buffer = Some(blas_buffer.clone());
+
         let lock = blas_buffer.write().unwrap();
 
         let blas_create_info = vk::AccelerationStructureCreateInfoKHR::default()
@@ -152,6 +157,9 @@ impl AccelerationStructure {
                     | vk::MemoryPropertyFlags::HOST_VISIBLE,
             },
         )?;
+
+        self.scratch_buffer = Some(scratch_buffer.clone());
+
         let lock = scratch_buffer.read().unwrap();
 
         let build_info =
