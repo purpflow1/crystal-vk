@@ -174,6 +174,7 @@ impl DescriptorSet {
         let descriptor_write = vk::WriteDescriptorSet::default()
             .dst_set(self.handle)
             .dst_binding(binding)
+            .descriptor_count(1)
             .descriptor_type(typ)
             .push_next(&mut acc_info);
 
