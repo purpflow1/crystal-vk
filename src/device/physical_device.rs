@@ -277,11 +277,19 @@ impl PhysicalDevice {
         let mut accel = vk::PhysicalDeviceAccelerationStructureFeaturesKHR::default()
             .acceleration_structure(true);
 
+        let mut buffer_device_address =
+            vk::PhysicalDeviceBufferDeviceAddressFeatures::default().buffer_device_address(true);
+
+        let mut raytracing =
+            vk::PhysicalDeviceRayTracingPipelineFeaturesKHR::default().ray_tracing_pipeline(true);
+
         let device_create_info = vk::DeviceCreateInfo::default()
             .queue_create_infos(&device_queue_create_infos)
             .enabled_features(&features)
             .enabled_extension_names(&extension_names)
-            .push_next(&mut accel);
+            .push_next(&mut accel)
+            .push_next(&mut buffer_device_address)
+            .push_next(&mut raytracing);
 
         Ok((
             unsafe {

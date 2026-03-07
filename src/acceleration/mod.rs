@@ -22,23 +22,19 @@ pub struct GeometryTriangles {
 
 impl GeometryTriangles {
     pub(crate) fn as_vk<'a>(&self) -> vk::AccelerationStructureGeometryKHR<'a> {
-        let mut vertex_lock = self.vertex_buffer.write().unwrap();
-        let size = vertex_lock.info.size;
-        vertex_lock.bind_memory(0..size).unwrap();
-        let mut index_lock = self.index_buffer.write().unwrap();
-        let size = index_lock.info.size;
-        index_lock.bind_memory(0..size).unwrap();
+        let vertex_lock = self.vertex_buffer.read().unwrap();
+        let index_lock = self.index_buffer.read().unwrap();
 
         let triangles = vk::AccelerationStructureGeometryTrianglesDataKHR::default()
             .vertex_format(self.vertex_format)
             .vertex_data(vk::DeviceOrHostAddressConstKHR {
-                device_address: vertex_lock.mapped as u64,
+                device_address: unsafe { vertex_lock.get_buffer_device_address() },
             })
             .vertex_stride(self.vertex_stride)
             .max_vertex(self.vertex_max)
             .index_type(self.index_type)
             .index_data(vk::DeviceOrHostAddressConstKHR {
-                device_address: index_lock.mapped as u64,
+                device_address: unsafe { index_lock.get_buffer_device_address() },
             });
 
         vk::AccelerationStructureGeometryKHR::default()

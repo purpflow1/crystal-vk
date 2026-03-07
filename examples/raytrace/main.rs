@@ -51,6 +51,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             vk::KHR_DEFERRED_HOST_OPERATIONS_NAME,
             vk::KHR_ACCELERATION_STRUCTURE_NAME,
             vk::KHR_RAY_TRACING_PIPELINE_NAME,
+            vk::EXT_BUFFER_DEVICE_ADDRESS_NAME,
         ],
     )?;
 

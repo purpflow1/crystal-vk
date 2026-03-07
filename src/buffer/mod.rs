@@ -124,7 +124,7 @@ impl<Usage: BufferUsage> Buffer<Usage> {
             .stride(stride)
     }
 
-    unsafe fn get_buffer_device_address(&self) -> u64 {
+    pub unsafe fn get_buffer_device_address(&self) -> u64 {
         let address_info = vk::BufferDeviceAddressInfo::default().buffer(self.handle);
         unsafe { self.device.handle.get_buffer_device_address(&address_info) }
     }
