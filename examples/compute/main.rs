@@ -156,7 +156,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let command_buffer_builder = command_buffer_builder
         .bind_pipeline(pipeline)
         .bind_descriptor_sets(0, vec![descriptor_set.clone()])
-        .dispatch([2, 1, 1]);
+        .dispatch([1, 1, 1]);
 
     let mut future = command_buffer_builder.build(queue)?;
     future.flush().unwrap();
