@@ -151,7 +151,8 @@ impl AccelerationStructure {
                 sharing_mode: vk::SharingMode::EXCLUSIVE,
                 usage: vk::BufferUsageFlags::ACCELERATION_STRUCTURE_STORAGE_KHR
                     | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
-                properties: vk::MemoryPropertyFlags::DEVICE_LOCAL,
+                properties: vk::MemoryPropertyFlags::DEVICE_LOCAL
+                    | vk::MemoryPropertyFlags::HOST_VISIBLE,
             },
         )?;
         let mut lock = scratch_buffer.write().unwrap();

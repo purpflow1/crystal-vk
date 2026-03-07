@@ -274,17 +274,14 @@ impl PhysicalDevice {
             .chain(portability)
             .collect();
 
-        let mut device_create_info = vk::DeviceCreateInfo::default()
-            .queue_create_infos(&device_queue_create_infos)
-            .enabled_features(&features)
-            .enabled_extension_names(&extension_names);
-
         let mut accel = vk::PhysicalDeviceAccelerationStructureFeaturesKHR::default()
             .acceleration_structure(true);
 
-        if extension_names.contains(&vk::KHR_ACCELERATION_STRUCTURE_NAME.as_ptr()) {
-            device_create_info = device_create_info.push_next(&mut accel);
-        }
+        let device_create_info = vk::DeviceCreateInfo::default()
+            .queue_create_infos(&device_queue_create_infos)
+            .enabled_features(&features)
+            .enabled_extension_names(&extension_names)
+            .push_next(&mut accel);
 
         Ok((
             unsafe {

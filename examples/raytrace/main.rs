@@ -33,8 +33,8 @@ const SAMPLES: i32 = 1024;
 const FRAMES: u32 = 128;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let width = 800;
-    let height = 600;
+    let width = 3000;
+    let height = 3000;
 
     // -------------------------------------------------
     // Vulkan instance / device
@@ -173,9 +173,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     // -------------------------------------------------------------------------
     let descriptor_pool = DescriptorPool::new(
         device.clone(),
-        &[vk::DescriptorPoolSize::default()
-            .ty(vk::DescriptorType::STORAGE_IMAGE)
-            .descriptor_count(1)],
+        &[
+            vk::DescriptorPoolSize::default()
+                .ty(vk::DescriptorType::STORAGE_IMAGE)
+                .descriptor_count(1),
+            vk::DescriptorPoolSize::default()
+                .ty(vk::DescriptorType::ACCELERATION_STRUCTURE_KHR)
+                .descriptor_count(1),
+        ],
     )?;
 
     // layout for storage image + TLAS
@@ -203,6 +208,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         .into_iter()
         .collect(),
     )?;
+
+    let command_buffer = CommandBufferBuilder::new(allocator.clone(), 0)?
+        .build_acceleration_structure(acceleration_structure.clone())?;
+    let mut cb = command_buffer.build(queue.clone())?;
+    cb.flush()?;
+    cb.wait()?;
 
     let descriptor_set =
         DescriptorSet::new(descriptor_pool.clone(), descriptor_set_layout.clone(), 1)?[0].clone();
@@ -415,7 +426,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             size,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
             usage: vk::BufferUsageFlags::TRANSFER_DST,
-            properties: vk::MemoryPropertyFlags::HOST_VISIBLE,
+            properties: vk::MemoryPropertyFlags::HOST_VISIBLE
+                | vk::MemoryPropertyFlags::HOST_VISIBLE,
         },
     )?;
 
