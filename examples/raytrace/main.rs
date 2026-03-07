@@ -93,7 +93,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             size: (vertices.len() * size_of::<f32>()) as u64,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
             usage: vk::BufferUsageFlags::VERTEX_BUFFER
-                | vk::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR,
+                | vk::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR
+                | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
             properties: vk::MemoryPropertyFlags::HOST_VISIBLE
                 | vk::MemoryPropertyFlags::HOST_COHERENT,
         },
@@ -118,7 +119,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             size: (indices.len() * size_of::<u32>()) as u64,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
             usage: vk::BufferUsageFlags::INDEX_BUFFER
-                | vk::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR,
+                | vk::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR
+                | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
             properties: vk::MemoryPropertyFlags::HOST_VISIBLE
                 | vk::MemoryPropertyFlags::HOST_COHERENT,
         },
