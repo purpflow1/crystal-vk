@@ -146,19 +146,19 @@ impl AccelerationStructure {
                 size: sizes.build_scratch_size,
                 sharing_mode: vk::SharingMode::EXCLUSIVE,
                 usage: vk::BufferUsageFlags::ACCELERATION_STRUCTURE_STORAGE_KHR
+                    | vk::BufferUsageFlags::STORAGE_BUFFER
                     | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
                 properties: vk::MemoryPropertyFlags::DEVICE_LOCAL
                     | vk::MemoryPropertyFlags::HOST_VISIBLE,
             },
         )?;
-        let mut lock = scratch_buffer.write().unwrap();
-        lock.bind_memory(0..sizes.build_scratch_size)?;
+        let lock = scratch_buffer.read().unwrap();
 
         let build_info =
             build_info
                 .dst_acceleration_structure(blas)
                 .scratch_data(vk::DeviceOrHostAddressKHR {
-                    device_address: lock.mapped as u64,
+                    device_address: unsafe { lock.get_buffer_device_address() },
                 });
         let range_infos: Vec<_> = primitive_counts
             .iter()
