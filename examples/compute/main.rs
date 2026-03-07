@@ -132,9 +132,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     {
         let mut lock = buffer_in.write().unwrap();
         let memory = lock.bind_memory(0..1024).unwrap();
-        let memory: &mut [u32] = bytemuck::cast_slice_mut(memory);
+        let memory: &mut [u64] = bytemuck::cast_slice_mut(memory);
         for word in memory {
-            *word = rand() as u32;
+            *word = rand();
         }
     }
 
