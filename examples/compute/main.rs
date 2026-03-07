@@ -11,7 +11,6 @@ use std::{
 use crystal_vk::{
     buffer::{Buffer, BufferInfo},
     command::{CommandBufferAllocator, command_buffer_builder::CommandBufferBuilder},
-    deferred::{DeferredOperation, DeferredOperationAllocator},
     device::Device,
     pipeline::{
         Pipeline,
@@ -121,20 +120,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         binary.as_binary().to_vec(),
     )?;
 
-    let deferred_operation_allocator = DeferredOperationAllocator::new(device.clone())?;
-    let op = DeferredOperation::begin(deferred_operation_allocator.clone())?;
-
     let pipeline_layout = PipelineLayout::new(descriptor_pool, vec![descriptor_set_layout], &[])?;
     let pipeline = Pipeline::new_compute(pipeline_layout.clone(), shader.clone(), None)?;
-
-    op.join()?;
 
     {
         let mut lock = buffer_in.write().unwrap();
         let memory = lock.bind_memory(0..1024).unwrap();
-        let memory: &mut [u32] = bytemuck::cast_slice_mut(memory);
+        let memory: &mut [u64] = bytemuck::cast_slice_mut(memory);
         for word in memory {
-            *word = rand() as u32;
+            *word = rand();
         }
     }
 
@@ -162,7 +156,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let command_buffer_builder = command_buffer_builder
         .bind_pipeline(pipeline)
         .bind_descriptor_sets(0, vec![descriptor_set.clone()])
-        .dispatch([2, 1, 1]);
+        .dispatch([1, 1, 1]);
 
     let mut future = command_buffer_builder.build(queue)?;
     future.flush().unwrap();

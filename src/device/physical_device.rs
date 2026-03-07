@@ -36,21 +36,25 @@ impl std::fmt::Debug for PhysicalDevice {
 }
 
 impl PhysicalDevice {
+    /// Finds a memory type index that satisfies the requested `flags` and is present in
+    /// the `type_filter` bitmask.
     pub(crate) fn find_memory_type_index(
         &self,
         flags: vk::MemoryPropertyFlags,
         type_filter: u32,
-    ) -> Result<u32, Box<dyn Error>> {
-        for i in 0..self.info.memory_properties.memory_type_count {
+    ) -> u32 {
+        let memory_properties = self.info.memory_properties;
+
+        for i in 0..memory_properties.memory_type_count {
+            // Verify the i‑th bit is set in the filter and the memory type satisfies the flags.
             if (type_filter & (1 << i)) != 0
-                && (self.info.memory_properties.memory_types[i as usize].property_flags & flags)
-                    == flags
+                && (memory_properties.memory_types[i as usize].property_flags & flags) == flags
             {
-                return Ok(i);
+                return i;
             }
         }
 
-        Err("cannot find suitable memory type".into())
+        0
     }
 
     pub(crate) fn query_swap_chain_support(

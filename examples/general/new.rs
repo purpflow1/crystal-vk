@@ -39,7 +39,7 @@ impl VulkanContext {
                 .create_window(
                     Window::default_attributes()
                         .with_inner_size(LogicalSize::new(300, 300))
-                        .with_min_inner_size(LogicalSize::new(100, 100)),
+                        .with_min_inner_size(LogicalSize::new(300, 300)),
                 )
                 .unwrap()
         };
@@ -66,7 +66,7 @@ impl VulkanContext {
             .unwrap()[0]
             .clone();
 
-        let swapchain = Swapchain::new(present_queue, [150, 150], true).unwrap();
+        let swapchain = Swapchain::new(present_queue, [300, 300], true).unwrap();
         let swapchain_images = swapchain.image_sequence.clone();
 
         let pool_sizes = [
