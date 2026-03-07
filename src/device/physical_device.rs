@@ -41,25 +41,19 @@ impl PhysicalDevice {
         &self,
         flags: vk::MemoryPropertyFlags,
         type_filter: u32,
-    ) -> Result<u32, Box<dyn Error>> {
-        Self::find_memory_type_index_in(&self.info.memory_properties, flags, type_filter)
-            .ok_or_else(|| "cannot find suitable memory type".into())
-    }
+    ) -> u32 {
+        let memory_properties = self.info.memory_properties;
 
-    fn find_memory_type_index_in(
-        memory_properties: &vk::PhysicalDeviceMemoryProperties,
-        flags: vk::MemoryPropertyFlags,
-        type_filter: u32,
-    ) -> Option<u32> {
         for i in 0..memory_properties.memory_type_count {
             // Verify the i‑th bit is set in the filter and the memory type satisfies the flags.
             if (type_filter & (1 << i)) != 0
                 && (memory_properties.memory_types[i as usize].property_flags & flags) == flags
             {
-                return Some(i);
+                return i;
             }
         }
-        None
+
+        0
     }
 
     pub(crate) fn query_swap_chain_support(

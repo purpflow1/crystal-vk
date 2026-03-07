@@ -316,7 +316,7 @@ impl Image {
             .memory_type_index(device.physical_device.find_memory_type_index(
                 image_create_info.mem_property,
                 memory_requirements.memory_type_bits,
-            )?);
+            ));
 
         let image_memory = unsafe { device.handle.allocate_memory(&memory_allocate_info, None) }?;
 

@@ -67,7 +67,7 @@ impl<Usage: BufferUsage> Buffer<Usage> {
 
         let memory_type_index = device
             .physical_device
-            .find_memory_type_index(info.properties, memory_requirements.memory_type_bits)?;
+            .find_memory_type_index(info.properties, memory_requirements.memory_type_bits);
 
         let memory_allocate_info = vk::MemoryAllocateInfo::default()
             .allocation_size(memory_requirements.size)
