@@ -424,10 +424,10 @@ impl CommandBufferBuilder {
         mut self,
         accel: Arc<Mutex<AccelerationStructure>>,
     ) -> Result<CommandBufferBuilder<Idle>, Box<dyn Error>> {
-        self.bindings.push_back(accel.clone());
-
         let mut lock = accel.lock().unwrap();
         lock.build(self.handle)?;
+
+        self.bindings.push_back(accel.clone());
 
         Ok(CommandBufferBuilder {
             handle: self.handle,
