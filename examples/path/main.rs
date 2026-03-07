@@ -23,7 +23,7 @@ use crystal_vk::{
     },
 };
 
-const SAMPLES: i32 = 1024;
+const SAMPLES: i32 = 256;
 const FRAMES: u32 = 128;
 
 fn main() -> Result<(), Box<dyn Error>> {
