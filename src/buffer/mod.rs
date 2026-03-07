@@ -69,9 +69,19 @@ impl<Usage: BufferUsage> Buffer<Usage> {
             .physical_device
             .find_memory_type_index(info.properties, memory_requirements.memory_type_bits);
 
+        let mut memory_allocate_flags = if info
+            .usage
+            .contains(vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS)
+        {
+            vk::MemoryAllocateFlagsInfo::default().flags(vk::MemoryAllocateFlags::DEVICE_ADDRESS)
+        } else {
+            vk::MemoryAllocateFlagsInfo::default()
+        };
+
         let memory_allocate_info = vk::MemoryAllocateInfo::default()
             .allocation_size(memory_requirements.size)
-            .memory_type_index(memory_type_index);
+            .memory_type_index(memory_type_index)
+            .push_next(&mut memory_allocate_flags);
 
         let device_memory = unsafe { device.handle.allocate_memory(&memory_allocate_info, None) }?;
 
