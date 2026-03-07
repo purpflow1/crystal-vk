@@ -421,9 +421,11 @@ impl CommandBufferBuilder<InRenderPassWithPipeline> {
 
 impl CommandBufferBuilder {
     pub fn build_acceleration_structure(
-        self,
+        mut self,
         accel: Arc<Mutex<AccelerationStructure>>,
     ) -> Result<CommandBufferBuilder<Idle>, Box<dyn Error>> {
+        self.bindings.push_back(accel.clone());
+
         let mut lock = accel.lock().unwrap();
         lock.build(self.handle)?;
 
