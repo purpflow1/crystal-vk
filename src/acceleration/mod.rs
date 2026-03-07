@@ -94,7 +94,7 @@ impl AccelerationStructure {
         let g = geometries.iter().map(|g| g.as_vk()).collect::<Vec<_>>();
 
         let build_info = vk::AccelerationStructureBuildGeometryInfoKHR::default()
-            .ty(vk::AccelerationStructureTypeKHR::BOTTOM_LEVEL)
+            .ty(vk::AccelerationStructureTypeKHR::TOP_LEVEL)
             .flags(vk::BuildAccelerationStructureFlagsKHR::PREFER_FAST_TRACE)
             .geometries(&g);
 
