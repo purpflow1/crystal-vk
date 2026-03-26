@@ -28,7 +28,10 @@ use crystal_vk::{
     render::{RenderTarget, swapchain::Swapchain},
     vk,
 };
-use winit::{dpi::LogicalSize, window::Window};
+use winit::{
+    dpi::{LogicalSize, PhysicalSize},
+    window::Window,
+};
 
 use crate::{timeline::Timeline, vulkan_context::VulkanContext};
 
@@ -39,7 +42,7 @@ impl VulkanContext {
                 .create_window(
                     Window::default_attributes()
                         .with_inner_size(LogicalSize::new(300, 300))
-                        .with_min_inner_size(LogicalSize::new(300, 300)),
+                        .with_min_inner_size(PhysicalSize::new(300, 300)),
                 )
                 .unwrap()
         };
