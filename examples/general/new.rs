@@ -295,7 +295,7 @@ impl VulkanContext {
         let command_allocator = CommandBufferAllocator::new(queues.clone()).unwrap();
 
         let (image, image_buffer) = {
-            let file = File::open("examples/resources/textures/test.png").unwrap();
+            let file = File::open("examples/resources/textures/seva.png").unwrap();
             let buf_reader = BufReader::new(file);
             let mut decoder = png::Decoder::new(buf_reader);
             decoder.set_transformations(png::Transformations::all());
