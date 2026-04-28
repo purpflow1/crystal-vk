@@ -17,7 +17,7 @@ This library provides convenient abstractions over Vulkan while maintaining its 
 Add `crystal-vk` to your `Cargo.toml` dependencies
 ```toml
 [dependencies]
-crystal-vk = "0.2.0"
+crystal-vk = "0.2.1"
 ```
 Here is a minimal example showing how to create a Vulkan device:
 ```rust
