@@ -53,11 +53,10 @@ impl Instance {
         Ok(physical_devices)
     }
 
-    fn new_in(
+    pub fn new_entry(
         display: Option<(RawWindowHandle, RawDisplayHandle)>,
+        entry: ash::Entry,
     ) -> Result<Arc<Self>, Box<dyn Error>> {
-        let entry = unsafe { ash::Entry::load() }?;
-
         let mut instance_extensions = vec![
             #[cfg(debug_assertions)]
             vk::EXT_DEBUG_UTILS_NAME.as_ptr(),
@@ -147,6 +146,13 @@ impl Instance {
             _debug_utils_messanger,
             window: display,
         }))
+    }
+
+    fn new_in(
+        display: Option<(RawWindowHandle, RawDisplayHandle)>,
+    ) -> Result<Arc<Self>, Box<dyn Error>> {
+        let entry = unsafe { ash::Entry::load() }?;
+        Self::new_entry(display, entry)
     }
 
     pub fn new() -> Result<Arc<Self>, Box<dyn Error>> {
