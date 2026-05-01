@@ -1,4 +1,4 @@
-use std::{error::Error, iter::zip, sync::Arc};
+use std::{error::Error, sync::Arc};
 
 use ash::vk;
 
@@ -46,42 +46,45 @@ impl Pipeline {
             return Err("no shaders specified".into());
         }
 
-        let mut stages = Vec::new();
-
-        for shader in shaders.clone() {
-            let stage = vk::PipelineShaderStageCreateInfo {
+        let stages: Vec<_> = shaders
+            .iter()
+            .map(|shader| vk::PipelineShaderStageCreateInfo {
                 stage: shader.stage,
                 module: shader.handle,
                 p_name: shader.entry_point.as_ptr(),
                 ..Default::default()
-            };
-
-            stages.push(stage);
-        }
-
-        let attributes = pipeline_info.vertex_attributes.clone();
+            })
+            .collect();
 
         let binding_descriptions = &[vk::VertexInputBindingDescription::default()
             .binding(0)
-            .stride(attributes.iter().map(|a| a.size as u32).sum())
+            .stride(
+                pipeline_info
+                    .vertex_attributes
+                    .iter()
+                    .map(|a| a.size as u32)
+                    .sum(),
+            )
             .input_rate(vk::VertexInputRate::VERTEX)];
 
-        let mut attribute_descriptions = vec![];
-
-        for (location, attribute) in zip(0..attributes.len() as u32, attributes) {
-            let attribute_description = vk::VertexInputAttributeDescription::default()
-                .binding(0)
-                .location(location)
-                .format(match attribute.size {
-                    4 => vk::Format::R32_SFLOAT,
-                    8 => vk::Format::R32G32_SFLOAT,
-                    12 => vk::Format::R32G32B32_SFLOAT,
-                    16 => vk::Format::R32G32B32A32_SFLOAT,
-                    _ => vk::Format::R32G32B32_SFLOAT,
-                })
-                .offset(attribute.offset as u32);
-            attribute_descriptions.push(attribute_description);
-        }
+        let attribute_descriptions: Vec<_> = pipeline_info
+            .vertex_attributes
+            .iter()
+            .enumerate()
+            .map(|(location, attribute)| {
+                vk::VertexInputAttributeDescription::default()
+                    .binding(0)
+                    .location(location as u32)
+                    .format(match attribute.size {
+                        4 => vk::Format::R32_SFLOAT,
+                        8 => vk::Format::R32G32_SFLOAT,
+                        12 => vk::Format::R32G32B32_SFLOAT,
+                        16 => vk::Format::R32G32B32A32_SFLOAT,
+                        _ => vk::Format::R32G32B32_SFLOAT,
+                    })
+                    .offset(attribute.offset as u32)
+            })
+            .collect();
 
         let vertex_input_info = vk::PipelineVertexInputStateCreateInfo::default()
             .vertex_binding_descriptions(binding_descriptions)
