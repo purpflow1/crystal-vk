@@ -5,7 +5,7 @@ use std::{
 };
 
 use crystal_vk::{
-    buffer::{AnyBuffer, Buffer, IndexBuffer, VertexBuffer},
+    buffer::Buffer,
     command::CommandBufferAllocator,
     device::{Device, queue::QueuePool},
     image::sampler::Sampler,
@@ -41,10 +41,10 @@ pub struct VulkanContext {
 
     pub command_allocator: Arc<CommandBufferAllocator>,
 
-    pub buffer_vert: Arc<RwLock<Buffer<VertexBuffer>>>,
-    pub buffer_ind: Arc<RwLock<Buffer<IndexBuffer>>>,
-    pub buffer_model: Arc<RwLock<Buffer<AnyBuffer>>>,
-    pub buffer_resolution_uniform: Arc<RwLock<Buffer<AnyBuffer>>>,
+    pub buffer_vert: Arc<RwLock<Buffer>>,
+    pub buffer_ind: Arc<RwLock<Buffer>>,
+    pub buffer_model: Arc<RwLock<Buffer>>,
+    pub buffer_resolution_uniform: Arc<RwLock<Buffer>>,
     pub post_process_sampler: Arc<Sampler>,
 
     pub post_process_pipeline: Arc<Pipeline>,

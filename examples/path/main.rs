@@ -8,7 +8,7 @@ use std::{
 
 use ash::vk;
 use crystal_vk::{
-    buffer::{AnyBuffer, BufferInfo},
+    buffer::BufferInfo,
     command::{CommandBufferAllocator, command_buffer_builder::CommandBufferBuilder},
     pipeline::{
         Pipeline,
@@ -159,7 +159,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let size = (width * height * 16) as u64;
 
-    let buffer = crystal_vk::buffer::Buffer::<AnyBuffer>::new(
+    let buffer = crystal_vk::buffer::Buffer::new(
         device,
         BufferInfo {
             size,

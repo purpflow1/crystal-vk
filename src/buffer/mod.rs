@@ -1,6 +1,5 @@
 use std::{
     error::Error,
-    marker::PhantomData,
     ops::Range,
     sync::{Arc, RwLock},
 };
@@ -8,20 +7,6 @@ use std::{
 use ash::vk;
 
 use crate::device::Device;
-
-pub trait BufferUsage {}
-
-pub struct VertexBuffer {}
-impl BufferUsage for VertexBuffer {}
-
-pub struct IndexBuffer {}
-impl BufferUsage for IndexBuffer {}
-
-pub struct InderectBuffer {}
-impl BufferUsage for InderectBuffer {}
-
-pub struct AnyBuffer {}
-impl BufferUsage for AnyBuffer {}
 
 #[derive(Clone, Copy)]
 pub struct BufferInfo {
@@ -31,21 +16,19 @@ pub struct BufferInfo {
     pub properties: vk::MemoryPropertyFlags,
 }
 
-pub struct Buffer<Usage: BufferUsage + 'static> {
+pub struct Buffer {
     pub(super) handle: vk::Buffer,
     memory: vk::DeviceMemory,
     pub info: BufferInfo,
     pub mapped: *mut u8,
 
     pub device: Arc<Device>,
-
-    _usage: PhantomData<Usage>,
 }
 
-unsafe impl<Usage: BufferUsage> Send for Buffer<Usage> {}
-unsafe impl<Usage: BufferUsage> Sync for Buffer<Usage> {}
+unsafe impl Send for Buffer {}
+unsafe impl Sync for Buffer {}
 
-impl<Usage: BufferUsage> Drop for Buffer<Usage> {
+impl Drop for Buffer {
     fn drop(&mut self) {
         unsafe {
             self.device.handle.free_memory(self.memory, None);
@@ -54,7 +37,7 @@ impl<Usage: BufferUsage> Drop for Buffer<Usage> {
     }
 }
 
-impl<Usage: BufferUsage> Buffer<Usage> {
+impl Buffer {
     pub fn new(device: Arc<Device>, info: BufferInfo) -> Result<Arc<RwLock<Self>>, Box<dyn Error>> {
         let create_info = vk::BufferCreateInfo::default()
             .size(info.size)
@@ -83,7 +66,6 @@ impl<Usage: BufferUsage> Buffer<Usage> {
             mapped: std::ptr::null_mut(),
             info,
             device,
-            _usage: PhantomData,
         })))
     }
 

@@ -8,7 +8,7 @@ use std::{
 use ash::vk;
 
 use crate::{
-    buffer::{AnyBuffer, Buffer},
+    buffer::Buffer,
     image::{Image, sampler::Sampler},
     pipeline::descriptor::{DescriptorPool, descriptor_set_layout::DescriptorSetLayout},
 };
@@ -105,7 +105,7 @@ impl DescriptorSet {
 
     pub fn bind_buffer(
         &mut self,
-        buffer: Arc<RwLock<Buffer<AnyBuffer>>>,
+        buffer: Arc<RwLock<Buffer>>,
         binding: u32,
         array_offset: u32,
         array_count: u32,

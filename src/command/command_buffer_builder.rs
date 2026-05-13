@@ -9,7 +9,7 @@ use std::{
 use ash::vk;
 
 use crate::{
-    buffer::{AnyBuffer, Buffer, InderectBuffer, IndexBuffer, VertexBuffer},
+    buffer::Buffer,
     command::CommandBufferAllocator,
     device::queue::Queue,
     image::Image,
@@ -267,7 +267,7 @@ impl<State: RenderPassBound> CommandBufferBuilder<State> {
 
     pub fn bind_index_buffer(
         mut self,
-        buffer: Arc<RwLock<Buffer<IndexBuffer>>>,
+        buffer: Arc<RwLock<Buffer>>,
         index_type: vk::IndexType,
     ) -> Self {
         let buffer_lock = buffer.read().unwrap();
@@ -284,7 +284,7 @@ impl<State: RenderPassBound> CommandBufferBuilder<State> {
         self
     }
 
-    pub fn bind_vertex_buffer(mut self, buffer: Arc<RwLock<Buffer<VertexBuffer>>>) -> Self {
+    pub fn bind_vertex_buffer(mut self, buffer: Arc<RwLock<Buffer>>) -> Self {
         let buffer_lock = buffer.read().unwrap();
         self.bindings.push_back(buffer.clone());
         let buffer_raw = buffer_lock.handle;
@@ -371,7 +371,7 @@ impl CommandBufferBuilder<InRenderPassWithPipeline> {
 
     pub fn draw_indexed_inderect(
         self,
-        buffer: Arc<RwLock<Buffer<InderectBuffer>>>,
+        buffer: Arc<RwLock<Buffer>>,
         offset: u64,
         draw_count: u32,
         stride: u32,
@@ -600,11 +600,7 @@ impl CommandBufferBuilder {
         self
     }
 
-    pub fn copy_image_to_buffer(
-        mut self,
-        buffer: Arc<RwLock<Buffer<AnyBuffer>>>,
-        image: Arc<Image>,
-    ) -> Self {
+    pub fn copy_image_to_buffer(mut self, buffer: Arc<RwLock<Buffer>>, image: Arc<Image>) -> Self {
         self = self.transition_image_layout(image.clone(), vk::ImageLayout::TRANSFER_SRC_OPTIMAL);
         self.bindings.push_back(image.clone());
         self.bindings.push_back(buffer.clone());
@@ -647,11 +643,7 @@ impl CommandBufferBuilder {
         }
     }
 
-    pub fn copy_buffer_to_image(
-        mut self,
-        image: Arc<Image>,
-        buffer: Arc<RwLock<Buffer<AnyBuffer>>>,
-    ) -> Self {
+    pub fn copy_buffer_to_image(mut self, image: Arc<Image>, buffer: Arc<RwLock<Buffer>>) -> Self {
         self = self.transition_image_layout(image.clone(), vk::ImageLayout::TRANSFER_DST_OPTIMAL);
         self.bindings.push_back(image.clone());
         self.bindings.push_back(buffer.clone());
