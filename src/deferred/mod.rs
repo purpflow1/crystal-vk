@@ -64,7 +64,10 @@ pub struct DeferredOperationAllocator {
 
 impl DeferredOperationAllocator {
     pub fn new(device: Arc<Device>) -> Result<Arc<Self>, Box<dyn Error>> {
-        let device = deferred_host_operations::Device::new(&device.instance.handle, &device.handle);
+        let device = deferred_host_operations::Device::new(
+            &device.physical_device.instance.handle,
+            &device.handle,
+        );
         Ok(Arc::new(Self { handle: device }))
     }
 }

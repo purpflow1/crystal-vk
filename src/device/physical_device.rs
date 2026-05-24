@@ -11,6 +11,7 @@ pub struct SwapChainSupportDetails {
     pub capabilities: vk::SurfaceCapabilitiesKHR,
 }
 
+#[derive(Clone, Debug)]
 pub struct PhysicalDeviceInfo {
     pub name: String,
     pub properties: vk::PhysicalDeviceProperties,
@@ -20,8 +21,9 @@ pub struct PhysicalDeviceInfo {
     pub queue_families_info: Vec<QueueFamilyInfo>,
 }
 
+#[derive(Clone)]
 pub struct PhysicalDevice {
-    pub handle: vk::PhysicalDevice,
+    pub(crate) handle: vk::PhysicalDevice,
     pub info: PhysicalDeviceInfo,
     pub swap_chain_support_details: Option<SwapChainSupportDetails>,
     pub(crate) instance: Arc<Instance>,
@@ -93,7 +95,7 @@ impl PhysicalDevice {
         instance: Arc<Instance>,
         surface: Option<Arc<Surface>>,
         physical_devices: Vec<vk::PhysicalDevice>,
-    ) -> Result<Vec<Arc<Self>>, Box<dyn Error>> {
+    ) -> Result<Vec<Self>, Box<dyn Error>> {
         let mut devices = Vec::with_capacity(physical_devices.len());
 
         for &device_handle in &physical_devices {
@@ -147,13 +149,13 @@ impl PhysicalDevice {
                 queue_families_info,
             };
 
-            devices.push(Arc::new(Self {
+            devices.push(Self {
                 handle: device_handle,
                 info,
                 swap_chain_support_details,
                 instance: instance.clone(),
                 surface: surface.clone(),
-            }));
+            });
         }
 
         Ok(devices)

@@ -44,7 +44,7 @@ impl Instance {
     pub fn enumerate_physical_devices(
         self: &Arc<Self>,
         surface: Option<Arc<Surface>>,
-    ) -> Result<Vec<Arc<PhysicalDevice>>, Box<dyn Error>> {
+    ) -> Result<Vec<PhysicalDevice>, Box<dyn Error>> {
         let physical_devices_raw = unsafe { self.handle.enumerate_physical_devices() }?;
 
         let physical_devices =

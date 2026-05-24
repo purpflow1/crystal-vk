@@ -4,21 +4,15 @@ pub mod queue;
 use ash::vk;
 use std::{error::Error, ffi::CStr, sync::Arc};
 
-use crate::{
-    device::{
-        physical_device::PhysicalDevice,
-        queue::{Queue, QueuePool},
-    },
-    instance,
-    render::surface,
+use crate::device::{
+    physical_device::PhysicalDevice,
+    queue::{Queue, QueuePool},
 };
 
 pub struct Device {
     pub(crate) handle: ash::Device,
-    pub(crate) instance: Arc<instance::Instance>,
-    pub(crate) physical_device: Arc<physical_device::PhysicalDevice>,
+    pub(crate) physical_device: PhysicalDevice,
     pub(crate) extensions: Vec<String>,
-    pub(crate) surface: Option<Arc<surface::Surface>>,
 }
 
 unsafe impl Send for Device {}
@@ -36,7 +30,7 @@ impl Device {
     /// Extension `VK_KHR_portability_subset` is enabled by default for apple target.
     /// Unsupported extensions are disabled automatically
     pub fn new(
-        physical_device: Arc<PhysicalDevice>,
+        physical_device: PhysicalDevice,
         features: vk::PhysicalDeviceFeatures,
         extensions: Vec<&'static CStr>,
     ) -> Result<(Arc<Self>, QueuePool), Box<dyn Error>> {
@@ -44,8 +38,6 @@ impl Device {
 
         let device = Arc::new(Self {
             handle: device_handler,
-            instance: physical_device.instance.clone(),
-            surface: physical_device.surface.clone(),
             physical_device,
             extensions,
         });

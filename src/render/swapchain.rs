@@ -141,6 +141,7 @@ impl Swapchain {
         let swapchain_info = SwapchainInfo::new(device.clone(), extent, old.swapchain_info.vsync)?;
         let self_in = Self::new_in(old.present_queue.clone(), swapchain_info, old.swapchain_khr)?;
         device
+            .physical_device
             .surface
             .as_ref()
             .unwrap()
@@ -157,10 +158,17 @@ impl Swapchain {
         let device = present_queue.lock().unwrap().device.clone();
         let swapchain_info = SwapchainInfo::new(device.clone(), extent, vsync)?;
 
-        device.surface.as_ref().unwrap().swapchain.set(None);
+        device
+            .physical_device
+            .surface
+            .as_ref()
+            .unwrap()
+            .swapchain
+            .set(None);
 
         let self_in = Self::new_in(present_queue, swapchain_info, vk::SwapchainKHR::null())?;
         device
+            .physical_device
             .surface
             .as_ref()
             .unwrap()
@@ -176,7 +184,10 @@ impl Swapchain {
     ) -> Result<Arc<Self>, Box<dyn Error>> {
         let device = present_queue.lock().unwrap().device.clone();
 
-        let swapchain = ash::khr::swapchain::Device::new(&device.instance.handle, &device.handle);
+        let swapchain = ash::khr::swapchain::Device::new(
+            &device.physical_device.instance.handle,
+            &device.handle,
+        );
 
         let mut compression_control = vk::ImageCompressionControlEXT::default()
             .flags(vk::ImageCompressionFlagsEXT::FIXED_RATE_DEFAULT);
@@ -188,7 +199,15 @@ impl Swapchain {
             .unwrap();
 
         let mut swapchain_create_info = vk::SwapchainCreateInfoKHR::default()
-            .surface(device.surface.as_ref().unwrap().clone().surface_khr)
+            .surface(
+                device
+                    .physical_device
+                    .surface
+                    .as_ref()
+                    .unwrap()
+                    .clone()
+                    .surface_khr,
+            )
             .min_image_count(swapchain_info.image_count)
             .image_format(swapchain_info.surface_format.format)
             .image_color_space(swapchain_info.surface_format.color_space)

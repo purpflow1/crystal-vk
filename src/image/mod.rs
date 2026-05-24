@@ -104,6 +104,7 @@ impl Image {
     ) -> Result<Arc<Self>, Box<dyn Error>> {
         let format_properties = unsafe {
             device
+                .physical_device
                 .instance
                 .handle
                 .get_physical_device_format_properties(device.physical_device.handle, format)
@@ -149,6 +150,7 @@ impl Image {
     ) -> Result<Arc<Self>, Box<dyn Error>> {
         let format_properties = unsafe {
             device
+                .physical_device
                 .instance
                 .handle
                 .get_physical_device_format_properties(device.physical_device.handle, format)
