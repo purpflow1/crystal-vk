@@ -31,7 +31,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let height = 3000;
 
     let instance = crystal_vk::instance::Instance::new()?;
-    let physical_device = instance.enumerate_physical_devices(None)?[0].clone();
+    let physical_device = instance
+        .get_default_physical_device(None)
+        .expect("error during enumerate device")
+        .expect("cannot find default device");
     let (device, queues) = crystal_vk::device::Device::new(
         physical_device,
         vk::PhysicalDeviceFeatures::default(),

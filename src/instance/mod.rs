@@ -53,6 +53,36 @@ impl Instance {
         Ok(physical_devices)
     }
 
+    pub fn get_default_physical_device(
+        self: &Arc<Self>,
+        surface: Option<Arc<Surface>>,
+    ) -> Result<Option<PhysicalDevice>, Box<dyn Error>> {
+        let physical_devices_raw = unsafe { self.handle.enumerate_physical_devices() }?;
+
+        let is_surface = surface.is_some();
+
+        let physical_devices =
+            unsafe { PhysicalDevice::new(self.clone(), surface, physical_devices_raw) }?;
+
+        let physical_device = if is_surface {
+            physical_devices.into_iter().find(|pd| {
+                pd.info
+                    .queue_families_info
+                    .iter()
+                    .any(|f| f.flags.contains(vk::QueueFlags::GRAPHICS) && f.present_support)
+            })
+        } else {
+            physical_devices.into_iter().find(|pd| {
+                pd.info
+                    .queue_families_info
+                    .iter()
+                    .any(|f| f.flags.contains(vk::QueueFlags::COMPUTE))
+            })
+        };
+
+        Ok(physical_device)
+    }
+
     pub fn new_entry(
         display: Option<(RawWindowHandle, RawDisplayHandle)>,
         entry: ash::Entry,

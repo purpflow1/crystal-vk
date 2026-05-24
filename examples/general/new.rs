@@ -49,8 +49,10 @@ impl VulkanContext {
 
         let instance = crystal_vk::instance::Instance::new_window(&window).unwrap();
         let surface = instance.create_surface().unwrap();
-        let physical_devices = instance.enumerate_physical_devices(Some(surface)).unwrap();
-        let physical_device = physical_devices[0].clone();
+        let physical_device = instance
+            .get_default_physical_device(Some(surface))
+            .expect("error during enumerate device")
+            .expect("cannot find default device");
 
         let (device, queues) = Device::new(
             physical_device,
