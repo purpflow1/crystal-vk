@@ -17,6 +17,7 @@ pub struct GraphicsPipelineInfo {
     pub polygon_mode: vk::PolygonMode,
     pub cull_mode: vk::CullModeFlags,
     pub front_face: vk::FrontFace,
+    pub primitive_topology: vk::PrimitiveTopology,
     pub vertex_attributes: Vec<Attribute>,
 }
 
@@ -29,6 +30,7 @@ impl Default for GraphicsPipelineInfo {
             polygon_mode: vk::PolygonMode::FILL,
             cull_mode: vk::CullModeFlags::BACK,
             front_face: vk::FrontFace::COUNTER_CLOCKWISE,
+            primitive_topology: vk::PrimitiveTopology::TRIANGLE_LIST,
             vertex_attributes: vec![],
         }
     }
