@@ -29,10 +29,10 @@ impl Drop for Device {
 impl Device {
     /// Extension `VK_KHR_portability_subset` is enabled by default for apple target.
     /// Unsupported extensions are disabled automatically
-    pub fn new(
+    pub fn new<'a>(
         physical_device: PhysicalDevice,
         features: vk::PhysicalDeviceFeatures,
-        extensions: Vec<&'static CStr>,
+        extensions: Vec<&'a CStr>,
     ) -> Result<(Arc<Self>, QueuePool), Box<dyn Error>> {
         let (device_handler, extensions) = physical_device.create_device(features, extensions)?;
 

@@ -54,14 +54,18 @@ impl VulkanContext {
             .expect("error during enumerate device")
             .expect("cannot find default device");
 
-        let (device, queues) = Device::new(
-            physical_device,
-            vk::PhysicalDeviceFeatures::default().sampler_anisotropy(true),
-            vec![
+        let extensions = physical_device
+            .query_extensions_support(vec![
                 vk::KHR_SWAPCHAIN_NAME,
                 vk::EXT_IMAGE_COMPRESSION_CONTROL_NAME,
                 vk::EXT_IMAGE_COMPRESSION_CONTROL_SWAPCHAIN_NAME,
-            ],
+            ])
+            .unwrap();
+
+        let (device, queues) = Device::new(
+            physical_device,
+            vk::PhysicalDeviceFeatures::default().sampler_anisotropy(true),
+            extensions,
         )
         .unwrap();
 

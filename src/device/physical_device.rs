@@ -210,10 +210,10 @@ impl PhysicalDevice {
         queue_families
     }
 
-    fn query_extensions_support(
+    pub fn query_extensions_support<'a>(
         &self,
-        extensions: Vec<&'static CStr>,
-    ) -> Result<Vec<&CStr>, Box<dyn Error>> {
+        extensions: Vec<&'a CStr>,
+    ) -> Result<Vec<&'a CStr>, Box<dyn Error>> {
         let mut supported_extensions = Vec::with_capacity(extensions.len());
 
         let extension_props = unsafe {
@@ -236,13 +236,11 @@ impl PhysicalDevice {
         Ok(supported_extensions)
     }
 
-    pub(crate) fn create_device(
+    pub(crate) fn create_device<'a>(
         &self,
         features: vk::PhysicalDeviceFeatures,
-        extensions: Vec<&'static CStr>,
+        extensions: Vec<&'a CStr>,
     ) -> Result<(ash::Device, Vec<String>), Box<dyn Error>> {
-        let extensions = self.query_extensions_support(extensions)?;
-
         let mut device_queue_create_infos = Vec::with_capacity(self.info.queue_families_info.len());
 
         let queue_priorities = self
