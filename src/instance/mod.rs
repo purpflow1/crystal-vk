@@ -62,41 +62,43 @@ impl Instance {
         let physical_devices =
             unsafe { PhysicalDevice::new(self.clone(), surface, physical_devices_raw) }?;
 
-        let physical_device = {
-            let mut iter = physical_devices.into_iter();
+        let mut max_val = 0;
+        let mut max_idx = usize::MAX;
 
-            // Level 1
-            let mut d = iter.find(|pd| {
-                pd.info
-                    .queue_families_info
-                    .iter()
-                    .any(|f| f.flags.contains(vk::QueueFlags::GRAPHICS) && f.present_support)
-            });
+        physical_devices
+            .iter()
+            .map(|pd| {
+                let mut score = 0u16;
 
-            // Level 2
-            if d.is_none() {
-                d = iter.find(|pd| {
-                    pd.info
-                        .queue_families_info
-                        .iter()
-                        .any(|f| f.flags.contains(vk::QueueFlags::GRAPHICS))
+                pd.info.queue_families_info.iter().for_each(|f| {
+                    if f.flags.contains(vk::QueueFlags::COMPUTE) {
+                        score += 1
+                    }
+
+                    if f.flags.contains(vk::QueueFlags::GRAPHICS) {
+                        score += 1
+                    }
+
+                    if f.present_support {
+                        score += 1
+                    }
                 });
 
-                // Level 3
-                if d.is_none() {
-                    d = iter.find(|pd| {
-                        pd.info
-                            .queue_families_info
-                            .iter()
-                            .any(|f| f.flags.contains(vk::QueueFlags::COMPUTE))
-                    });
+                score
+            })
+            .enumerate()
+            .for_each(|(idx, score)| {
+                if score > max_val {
+                    max_val = score;
+                    max_idx = idx;
                 }
-            }
+            });
 
-            d
-        };
-
-        Ok(physical_device)
+        Ok(if max_idx == usize::MAX {
+            None
+        } else {
+            Some(physical_devices[max_idx].clone())
+        })
     }
 
     pub fn new_entry(
