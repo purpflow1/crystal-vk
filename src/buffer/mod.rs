@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    ops::Range,
+    ops::{Bound, RangeBounds},
     sync::{Arc, RwLock},
 };
 
@@ -69,25 +69,41 @@ impl Buffer {
         })))
     }
 
-    pub fn bind_memory<'a>(&mut self, range: Range<u64>) -> Result<&'a mut [u8], Box<dyn Error>> {
+    pub fn bind_memory<'a>(
+        &mut self,
+        range: impl RangeBounds<u64>,
+    ) -> Result<&'a mut [u8], Box<dyn Error>> {
         if !self.mapped.is_null() {
             unsafe { self.device.handle.unmap_memory(self.memory) };
             self.mapped = std::ptr::null_mut();
         }
 
+        let start = match range.start_bound() {
+            Bound::Included(bound) => *bound,
+            Bound::Excluded(bound) => *bound + 1,
+            _ => 0,
+        };
+
+        let end = match range.end_bound() {
+            Bound::Included(bound) => *bound + 1,
+            Bound::Excluded(bound) => *bound,
+            _ => self.info.size,
+        };
+
+        let bounds_len = end - start;
+
         let mapped = unsafe {
             self.device.handle.map_memory(
                 self.memory,
-                range.start,
-                range.end - range.start,
+                start,
+                bounds_len,
                 vk::MemoryMapFlags::empty(),
             )
         }? as *mut u8;
 
         self.mapped = mapped;
 
-        let slice =
-            unsafe { std::slice::from_raw_parts_mut(mapped, (range.end - range.start) as usize) };
+        let slice = unsafe { std::slice::from_raw_parts_mut(mapped, bounds_len as usize) };
 
         Ok(slice)
     }
