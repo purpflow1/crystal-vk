@@ -59,6 +59,8 @@ impl VulkanContext {
                 vk::KHR_SWAPCHAIN_NAME,
                 vk::EXT_IMAGE_COMPRESSION_CONTROL_NAME,
                 vk::EXT_IMAGE_COMPRESSION_CONTROL_SWAPCHAIN_NAME,
+                #[cfg(target_os = "macos")]
+                vk::KHR_PORTABILITY_SUBSET_NAME,
             ])
             .unwrap();
 

@@ -27,8 +27,6 @@ impl Drop for Device {
 }
 
 impl Device {
-    /// Extension `VK_KHR_portability_subset` is enabled by default for apple target.
-    /// Unsupported extensions are disabled automatically
     pub fn new<'a>(
         physical_device: PhysicalDevice,
         features: vk::PhysicalDeviceFeatures,

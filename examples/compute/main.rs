@@ -52,7 +52,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let (device, queues) = Device::new(
         physical_device,
         vk::PhysicalDeviceFeatures::default(),
-        vec![vk::KHR_DEFERRED_HOST_OPERATIONS_NAME],
+        vec![
+            vk::KHR_DEFERRED_HOST_OPERATIONS_NAME,
+            #[cfg(target_os = "macos")]
+            vk::KHR_PORTABILITY_SUBSET_NAME,
+        ],
     )?;
 
     let buffer_in = Buffer::new(

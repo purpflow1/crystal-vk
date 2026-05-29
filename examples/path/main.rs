@@ -38,7 +38,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let (device, queues) = crystal_vk::device::Device::new(
         physical_device,
         vk::PhysicalDeviceFeatures::default(),
-        vec![vk::KHR_DEFERRED_HOST_OPERATIONS_NAME],
+        vec![
+            vk::KHR_DEFERRED_HOST_OPERATIONS_NAME,
+            #[cfg(target_os = "macos")]
+            vk::KHR_PORTABILITY_SUBSET_NAME,
+        ],
     )?;
 
     let queue = queues.first_key_value().unwrap().1[0].clone();
