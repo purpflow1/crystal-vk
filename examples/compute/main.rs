@@ -27,6 +27,7 @@ use crystal_vk::{
 };
 
 static RNG_STATE: Mutex<u64> = Mutex::new(0);
+const BUFFER_SIZE: u64 = 8192;
 
 pub fn rand() -> u64 {
     let mut s = RNG_STATE.lock().unwrap();
@@ -62,7 +63,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let buffer_in = Buffer::new(
         device.clone(),
         BufferInfo {
-            size: 1024,
+            size: BUFFER_SIZE,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
             usage: vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
             properties: vk::MemoryPropertyFlags::HOST_VISIBLE
@@ -73,7 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let buffer_out = Buffer::new(
         device.clone(),
         BufferInfo {
-            size: 1024,
+            size: BUFFER_SIZE,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
             usage: vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
             properties: vk::MemoryPropertyFlags::HOST_VISIBLE
@@ -132,7 +133,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     {
         let mut lock = buffer_in.write().unwrap();
-        let memory = lock.bind_memory(0..1024).unwrap();
+        let memory = lock.bind_memory(0..BUFFER_SIZE).unwrap();
         let memory: &mut [u64] = bytemuck::cast_slice_mut(memory);
         for word in memory {
             *word = rand();
@@ -163,7 +164,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let command_buffer_builder = command_buffer_builder
         .bind_pipeline(pipeline)
         .bind_descriptor_sets(0, vec![descriptor_set.clone()])
-        .dispatch([1, 1, 1]);
+        .dispatch([BUFFER_SIZE as u32 / 256, 1, 1]);
 
     let mut future = command_buffer_builder.build(queue)?;
     future.flush().unwrap();
