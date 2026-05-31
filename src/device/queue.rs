@@ -55,14 +55,12 @@ impl Queue {
     }
 
     pub fn instantiate(device: Arc<Device>) -> QueuePool {
-        let mut queues = BTreeMap::new();
-
         device
             .physical_device
             .info
             .queue_families_info
             .iter()
-            .for_each(|info| {
+            .filter_map(|info| {
                 let family_queues = (0..info.queue_count)
                     .map(|idx| {
                         Arc::new(Mutex::new(Queue {
@@ -72,10 +70,11 @@ impl Queue {
                     })
                     .collect::<Vec<Arc<Mutex<Queue>>>>();
                 if info.queue_count > 0 {
-                    queues.insert(*info, family_queues).unwrap_or_default();
+                    Some((*info, family_queues))
+                } else {
+                    None
                 }
-            });
-
-        queues
+            })
+            .collect()
     }
 }
