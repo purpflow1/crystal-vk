@@ -171,8 +171,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     future.wait().unwrap();
 
     let mut lock = buffer_out.write().unwrap();
-    let memory = lock.bind_memory(0..size_of::<u32>() as u64 * 8)?;
-    let data: &[u32] = bytemuck::cast_slice(memory);
+    let memory = lock.bind_memory(0..size_of::<f32>() as u64 * 8)?;
+    let data: &[f32] = bytemuck::cast_slice(memory);
     dbg!(data);
 
     Ok(())
