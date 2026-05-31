@@ -27,10 +27,10 @@ impl Drop for Device {
 }
 
 impl Device {
-    pub fn new<'a>(
+    pub fn new(
         physical_device: PhysicalDevice,
         features: vk::PhysicalDeviceFeatures,
-        extensions: Vec<&'a CStr>,
+        extensions: Vec<&CStr>,
     ) -> Result<(Arc<Self>, QueuePool), Box<dyn Error>> {
         let (device_handler, extensions) = physical_device.create_device(features, extensions)?;
 

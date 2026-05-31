@@ -236,10 +236,10 @@ impl PhysicalDevice {
         Ok(supported_extensions)
     }
 
-    pub(crate) fn create_device<'a>(
+    pub(crate) fn create_device(
         &self,
         features: vk::PhysicalDeviceFeatures,
-        extensions: Vec<&'a CStr>,
+        extensions: Vec<&CStr>,
     ) -> Result<(ash::Device, Vec<String>), Box<dyn Error>> {
         let mut device_queue_create_infos = Vec::with_capacity(self.info.queue_families_info.len());
 
