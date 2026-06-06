@@ -39,9 +39,9 @@ pub fn rand_u64() -> u64 {
     x.wrapping_mul(0x2545_F491_4F6C_DD1Du64)
 }
 
-pub fn rand_f64() -> f64 {
-    let v = rand_u64() >> 11;
-    (v as f64) / ((1u64 << 53) as f64)
+pub fn rand_f32() -> f32 {
+    let v = (rand_u64() >> 40) as u32;
+    (v as f32) / ((1u32 << 24) as f32)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -136,9 +136,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     {
         let mut lock = buffer_in.write().unwrap();
         let memory = lock.bind_memory(0..BUFFER_SIZE).unwrap();
-        let memory: &mut [f64] = bytemuck::cast_slice_mut(memory);
+        let memory: &mut [f32] = bytemuck::cast_slice_mut(memory);
         for word in memory {
-            *word = rand_f64();
+            *word = rand_f32();
         }
     }
 
