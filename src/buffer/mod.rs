@@ -77,7 +77,7 @@ impl Buffer {
         })))
     }
 
-    pub fn flush(&self) -> Result<(), Box<dyn Error>> {
+    pub fn flush(&mut self) -> Result<(), Box<dyn Error>> {
         let ranges: Vec<_> = self
             .cached_ranges
             .iter()
@@ -91,10 +91,12 @@ impl Buffer {
 
         unsafe { self.device.handle.flush_mapped_memory_ranges(&ranges)? };
 
+        self.cached_ranges.clear();
+
         Ok(())
     }
 
-    pub fn invalidate(&self) -> Result<(), Box<dyn Error>> {
+    pub fn invalidate(&mut self) -> Result<(), Box<dyn Error>> {
         let ranges: Vec<_> = self
             .cached_ranges
             .iter()
@@ -111,6 +113,8 @@ impl Buffer {
                 .handle
                 .invalidate_mapped_memory_ranges(&ranges)?
         };
+
+        self.cached_ranges.clear();
 
         Ok(())
     }
