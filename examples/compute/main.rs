@@ -29,7 +29,7 @@ use crystal_vk::{
 static RNG_STATE: Mutex<u64> = Mutex::new(0);
 const BUFFER_SIZE: u64 = 8192;
 
-pub fn rand() -> u64 {
+pub fn rand_u64() -> u64 {
     let mut s = RNG_STATE.lock().unwrap();
     let mut x = *s;
     x ^= x >> 12;
@@ -37,6 +37,11 @@ pub fn rand() -> u64 {
     x ^= x >> 27;
     *s = x;
     x.wrapping_mul(0x2545_F491_4F6C_DD1Du64)
+}
+
+pub fn rand_f64() -> f64 {
+    let v = rand_u64() >> 11;
+    (v as f64) / ((1u64 << 53) as f64)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -131,9 +136,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     {
         let mut lock = buffer_in.write().unwrap();
         let memory = lock.bind_memory(0..BUFFER_SIZE).unwrap();
-        let memory: &mut [u64] = bytemuck::cast_slice_mut(memory);
+        let memory: &mut [f64] = bytemuck::cast_slice_mut(memory);
         for word in memory {
-            *word = rand();
+            *word = rand_f64();
         }
     }
 
