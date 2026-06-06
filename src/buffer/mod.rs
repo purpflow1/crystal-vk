@@ -1,4 +1,5 @@
 use std::{
+    collections::VecDeque,
     error::Error,
     ops::{Bound, RangeBounds},
     sync::{Arc, RwLock},
@@ -7,6 +8,11 @@ use std::{
 use ash::vk;
 
 use crate::device::Device;
+
+struct MappedMemoryRange {
+    size: u64,
+    offset: u64,
+}
 
 #[derive(Clone, Copy)]
 pub struct BufferInfo {
@@ -21,6 +27,7 @@ pub struct Buffer {
     memory: vk::DeviceMemory,
     pub info: BufferInfo,
     pub mapped: *mut u8,
+    cached_ranges: VecDeque<MappedMemoryRange>,
 
     pub device: Arc<Device>,
 }
@@ -64,9 +71,48 @@ impl Buffer {
             handle: buffer,
             memory: device_memory,
             mapped: std::ptr::null_mut(),
+            cached_ranges: VecDeque::new(),
             info,
             device,
         })))
+    }
+
+    pub fn flush(&self) -> Result<(), Box<dyn Error>> {
+        let ranges: Vec<_> = self
+            .cached_ranges
+            .iter()
+            .map(|range| {
+                vk::MappedMemoryRange::default()
+                    .memory(self.memory)
+                    .offset(range.offset)
+                    .size(range.size)
+            })
+            .collect();
+
+        unsafe { self.device.handle.flush_mapped_memory_ranges(&ranges)? };
+
+        Ok(())
+    }
+
+    pub fn invalidate(&self) -> Result<(), Box<dyn Error>> {
+        let ranges: Vec<_> = self
+            .cached_ranges
+            .iter()
+            .map(|range| {
+                vk::MappedMemoryRange::default()
+                    .memory(self.memory)
+                    .offset(range.offset)
+                    .size(range.size)
+            })
+            .collect();
+
+        unsafe {
+            self.device
+                .handle
+                .invalidate_mapped_memory_ranges(&ranges)?
+        };
+
+        Ok(())
     }
 
     pub fn bind_memory<'a>(
@@ -102,6 +148,17 @@ impl Buffer {
         }? as *mut u8;
 
         self.mapped = mapped;
+
+        if !self
+            .info
+            .properties
+            .contains(vk::MemoryPropertyFlags::HOST_COHERENT)
+        {
+            self.cached_ranges.push_back(MappedMemoryRange {
+                size: bounds_len,
+                offset: start,
+            });
+        }
 
         let slice = unsafe { std::slice::from_raw_parts_mut(mapped, bounds_len as usize) };
 

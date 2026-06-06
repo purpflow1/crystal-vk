@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         BufferInfo {
             size: BUFFER_SIZE,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
-            usage: vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
+            usage: vk::BufferUsageFlags::STORAGE_BUFFER,
             properties: vk::MemoryPropertyFlags::HOST_VISIBLE
                 | vk::MemoryPropertyFlags::HOST_COHERENT,
         },
@@ -78,7 +78,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         BufferInfo {
             size: BUFFER_SIZE,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
-            usage: vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
+            usage: vk::BufferUsageFlags::STORAGE_BUFFER,
             properties: vk::MemoryPropertyFlags::HOST_VISIBLE
                 | vk::MemoryPropertyFlags::HOST_COHERENT,
         },
