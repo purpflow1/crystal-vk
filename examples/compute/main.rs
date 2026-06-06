@@ -32,9 +32,6 @@ const BUFFER_SIZE: u64 = 8192;
 pub fn rand() -> u64 {
     let mut s = RNG_STATE.lock().unwrap();
     let mut x = *s;
-    if x == 0 {
-        x = 0xdead_beef_dead_beef;
-    }
     x ^= x >> 12;
     x ^= x << 25;
     x ^= x >> 27;
