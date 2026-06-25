@@ -222,16 +222,13 @@ impl PhysicalDevice {
                 .enumerate_device_extension_properties(self.handle)
         }?;
 
-        let device_supported_extensions: Vec<&std::ffi::CStr> = extension_props
-            .iter()
-            .map(|ext| ext.extension_name_as_c_str().unwrap())
-            .collect();
+        extension_props.iter().for_each(|sup_ext| {
+            let e = sup_ext.extension_name_as_c_str().unwrap();
 
-        for sup_ext in &device_supported_extensions {
-            if let Some(ext) = extensions.iter().find(|&req_ext| *req_ext == *sup_ext) {
+            if let Some(ext) = extensions.iter().find(|&req_ext| *req_ext == e) {
                 supported_extensions.push(*ext)
             }
-        }
+        });
 
         Ok(supported_extensions)
     }
