@@ -280,8 +280,6 @@ impl PhysicalDevice {
         tiling: vk::ImageTiling,
         features: vk::FormatFeatureFlags,
     ) -> Option<vk::Format> {
-        let mut depth_format = None;
-
         for format in [
             vk::Format::D32_SFLOAT_S8_UINT,
             vk::Format::D24_UNORM_S8_UINT,
@@ -297,11 +295,10 @@ impl PhysicalDevice {
                 || tiling == vk::ImageTiling::OPTIMAL
                     && (properties.optimal_tiling_features & features) == features
             {
-                depth_format = Some(format);
-                break;
+                return Some(format);
             }
         }
 
-        depth_format
+        None
     }
 }
